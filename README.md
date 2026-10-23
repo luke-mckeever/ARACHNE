@@ -108,8 +108,8 @@ It runs locally in your browser, needs **nothing but Python**, and every behavio
 > **Requirements:** Python **3.10+**. That's it: no `pip install`, no Node, no Docker.
 
 ```bash
-git clone https://github.com/<your-username>/arachne-osint.git
-cd arachne-osint
+git clone https://github.com/luke-mckeever/ARACHNE.git
+cd ARACHNE
 python server.py
 ```
 
