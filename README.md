@@ -24,7 +24,7 @@ It runs locally and only needs Python. There's nothing to install.
 ## Getting started
 
 ```bash
-git clone https://github.com/<your-username>/arachne-osint.git
+git clone https://github.com/luke-mckeever/ARACHNE.git
 cd arachne-osint
 python server.py
 ```
