@@ -154,6 +154,11 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(settings.public())
         if key == ("GET", "/api/settings/export"):
             return self.send_json(settings.export(qs.get("keys", ["0"])[0] == "1"))
+        if key == ("GET", "/api/keys/export"):
+            return self.send_json(settings.export_keys())
+        if key == ("POST", "/api/keys/import"):
+            res = settings.import_keys(self.body(), {k["id"] for k in API_KEYS})
+            return self.send_json(res, 200 if res.get("imported") or res.get("unchanged") else 400)
         if key == ("POST", "/api/detect"):
             seeds, bad = parse_seeds(self.body().get("value", ""))
             return self.send_json({"seeds": seeds, "invalid": bad})

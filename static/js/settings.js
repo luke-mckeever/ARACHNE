@@ -54,7 +54,10 @@ function renderSettingsTab() {
 // ------------------------------------------------------------------ tabs
 function tabKeys() {
   const n = S.meta.api_keys.filter((k) => keySet(k.id)).length;
-  return `<h3>API Keys</h3><p class="lead">Keys are stored locally in <span class="mono">data/settings.json</span> and only sent to their own provider. ${n} of ${S.meta.api_keys.length} configured. Modules without a required key are skipped automatically.</p>` +
+  return `<h3>API Keys</h3><p class="lead">Keys are stored locally in <span class="mono">data/settings.json</span> and only sent to their own provider. ${n} of ${S.meta.api_keys.length} configured. Modules without a required key are skipped automatically.</p>
+    <div class="toolbar"><button class="btn sm" data-act-set="exportApiKeys" ${n ? "" : "disabled"} title="Download your keys as a JSON file to keep somewhere safe">Export keys</button>
+      <label class="btn sm ghost" title="Load keys from a file exported here (or a settings export that includes keys)">Import keys<input type="file" accept=".json,application/json" id="importKeysFile" hidden></label>
+      <span class="msg">The export is plain text. Store it outside the ARACHNE folder and don't share it.</span></div>` +
     S.meta.api_keys.map((k) => {
       const mods = S.meta.modules.filter((m) => m.keys.includes(k.id));
       const cur = S.settings.api_keys?.[k.id];
@@ -221,6 +224,17 @@ function bindSettings() {
       });
       return;
     }
+    if (el.id === "importKeysFile" && el.files[0]) {
+      el.files[0].text().then(async (txt) => {
+        try {
+          const r = await api("/api/keys/import", { body: JSON.parse(txt) });
+          S.settings = await api("/api/settings"); applyUI(); renderSettingsTab(); flashSaved();
+          toast(`${r.imported} key${r.imported === 1 ? "" : "s"} imported${r.unchanged ? `, ${r.unchanged} already set` : ""}${r.ignored?.length ? ` · ignored: ${r.ignored.join(", ")}` : ""}`);
+        } catch (err) { toast("Import failed: " + (err instanceof SyntaxError ? "not a valid JSON file" : err.message), "error", 5000); }
+      });
+      el.value = "";
+      return;
+    }
     if (el.dataset.k) setPath(el.dataset.k, readVal(el));
   });
   body.addEventListener("input", (e) => {
@@ -305,6 +319,12 @@ function bindSettings() {
     if (act === "resetColors") { await saveUI({ typeColors: {} }); renderSettingsTab(); return; }
     if (act === "resetUI") { S.settings = await api("/api/settings/reset", { body: { section: "ui" } }); applyUI(); renderSettingsTab(); return; }
     if (act === "clearCache") { const r = await api("/api/cache/clear", { body: {} }); toast(`Cleared ${r.cleared} cached results`); renderSettingsTab(); return; }
+    if (act === "exportApiKeys") {
+      const d = await api("/api/keys/export");
+      download("arachne-api-keys.json", JSON.stringify(d, null, 2), "application/json");
+      toast(`Exported ${Object.keys(d.keys).length} keys. Keep the file outside the ARACHNE folder.`, "info", 5000);
+      return;
+    }
     if (act === "exportNoKeys" || act === "exportKeys") {
       const d = await api("/api/settings/export?keys=" + (act === "exportKeys" ? 1 : 0));
       download(`arachne-settings${act === "exportKeys" ? "-with-keys" : ""}.json`, JSON.stringify(d, null, 2), "application/json");

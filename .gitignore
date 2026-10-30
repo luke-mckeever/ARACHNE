@@ -1,5 +1,8 @@
 # Local state - contains your API keys, cached lookups and saved scans. Never commit.
 data/
+# Exported API keys / settings backups - plain-text secrets, keep them out of the repo.
+arachne-api-keys*.json
+arachne-settings*.json
 
 # Python
 __pycache__/

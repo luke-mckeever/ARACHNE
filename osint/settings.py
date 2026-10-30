@@ -3,6 +3,7 @@ import copy
 import json
 import os
 import threading
+import time
 
 API_KEYS = [
     {"id": "virustotal", "label": "VirusTotal", "url": "https://www.virustotal.com/gui/my-apikey",
@@ -167,6 +168,33 @@ class Settings:
             elif section in DEFAULTS:
                 self.data[section] = copy.deepcopy(DEFAULTS[section])
             self.save()
+
+    def export_keys(self):
+        """API keys only, in plain text, for backing up to a file outside the repo."""
+        keys = {k: v for k, v in self.get().get("api_keys", {}).items() if v}
+        return {"arachne_api_keys": 1, "exported": time.strftime("%Y-%m-%dT%H:%M:%S"), "keys": keys}
+
+    def import_keys(self, payload, known_ids):
+        """Accepts an export_keys() file or a full settings export with api_keys.
+        Only known key ids are taken; existing keys not in the file are kept."""
+        payload = payload if isinstance(payload, dict) else {}
+        src = payload.get("keys")
+        if not isinstance(src, dict):
+            src = payload.get("api_keys")
+        if not isinstance(src, dict):
+            return {"error": "No API keys found in this file.", "imported": 0}
+        new = {k: str(v).strip() for k, v in src.items()
+               if k in known_ids and isinstance(v, str) and v.strip()}
+        ignored = sorted(k for k in src if k not in known_ids)
+        if not new:
+            return {"error": "No recognised API keys in this file.", "imported": 0, "ignored": ignored}
+        with _lock:
+            cur = self.data.setdefault("api_keys", {})
+            changed = {k: v for k, v in new.items() if cur.get(k) != v}
+            cur.update(changed)
+            if changed:
+                self.save()
+        return {"imported": len(changed), "unchanged": len(new) - len(changed), "ignored": ignored}
 
     def export(self, include_keys=False):
         d = self.get()
