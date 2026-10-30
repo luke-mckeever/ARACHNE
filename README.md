@@ -9,7 +9,7 @@ A self-hosted IOC scanner: one indicator in, one report from every threat-intel 
 [![Python](https://img.shields.io/badge/python-3.10%2B-0d0d10?style=for-the-badge&logo=python&logoColor=e4e4e7&labelColor=050506)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-0d0d10?style=for-the-badge&labelColor=050506&color=5b9cf5)](LICENSE)
 
-<img src="docs/screenshots/groups-collapsed.png" alt="ARACHNE graph view" width="100%">
+<img src="docs/screenshots/report.png" alt="ARACHNE scan report for an IP address" width="100%">
 
 </div>
 
@@ -20,6 +20,12 @@ Give it an IP, domain, URL, email address, username, file hash, ASN or CVE. ARAC
 The report also lists the related indicators the sources turned up (hostnames, IPs, emails, hashes, accounts). Scan any of them with one click, or switch on **Pivot** before scanning to look them up automatically, out to whatever depth you set. The **Graph** view maps it all as a web. I built it to stop copy-pasting the same IOC between VirusTotal, AbuseIPDB, Shodan and a dozen other tabs.
 
 It runs locally and only needs Python. There's nothing to install.
+
+## How it works
+
+1. **Scan.** Paste one or more IOCs into the search bar and press **Scan**. The type is detected automatically.
+2. **Read the report.** Each enabled source is queried in parallel and the report fills in live: the overall verdict, how many sources flag the IOC, a table with every source's verdict, score and key detail, and the full findings from each one. Sources that need an API key you haven't added are listed separately, so you can see what you're missing.
+3. **Pivot (optional).** The report lists every related indicator the sources found. Click **Scan** on any of them, or **Pivot: scan all**, to look them up too, then open the **Graph** view to see how everything connects. To pivot automatically, switch on **Pivot** next to the search bar before scanning and pick a depth.
 
 ## Getting started
 
@@ -33,14 +39,19 @@ The UI opens at `http://127.0.0.1:8777`. On Windows you can double-click `start.
 
 Optional flags: `--port 9000` and `--no-browser`.
 
+### API keys
+
 Add your API keys under **Settings → API Keys**. A lot of sources work without one, but VirusTotal, AbuseIPDB and abuse.ch (MalwareBazaar, URLhaus and ThreatFox) are where most of the useful verdicts come from. Keys are saved to `data/settings.json`, which is git-ignored.
+
+So you don't have to paste them in again on a new machine or after a fresh clone, use **Export keys** to save them to `arachne-api-keys.json` and **Import keys** to load them back. Import only adds or updates keys; it never removes any. The export is plain text, so store it somewhere safe outside the repo folder (exported key files are git-ignored as a backstop).
 
 ## Screenshots
 
 | | |
 |---|---|
-| ![Intel panel](docs/screenshots/intel.png) | ![Relations](docs/screenshots/relations.png) |
-| ![Username scan](docs/screenshots/username.png) | ![Module settings](docs/screenshots/settings-modules.png) |
+| ![Pivot graph](docs/screenshots/groups-collapsed.png) **Graph view:** the pivot web | ![Intel panel](docs/screenshots/intel.png) **Graph view:** per-node intel |
+| ![Relations](docs/screenshots/relations.png) **Graph view:** relations | ![Username scan](docs/screenshots/username.png) **Username scan** |
+| ![Module settings](docs/screenshots/settings-modules.png) **Settings:** modules | |
 
 ## Features
 
@@ -48,6 +59,7 @@ Add your API keys under **Settings → API Keys**. A lot of sources work without
 - **Multiple IOCs:** paste several, comma- or newline-separated, and switch between their reports.
 - **Pivoting when you want it:** scan related indicators one at a time or all at once from the report, or turn on auto-pivot with configurable depth and node limits. A noise filter stops it crawling through CDNs and big providers.
 - **Graph view:** everything found, mapped as a web, with malicious and suspicious nodes highlighted. Large sets of one type (e.g. 40 domains on one IP) collapse into a single box.
+- **API key import/export:** back up your keys to a file and load them back in one click.
 - **Settings for nearly everything:** turn modules on or off, set rate limits, add custom username sites and lookup links, change colours, set a proxy, and more.
 - **Exports:** HTML scan report, per-source verdicts CSV, JSON, a plain IOC list or a PNG of the graph.
 - **Saved scans:** every scan is saved, so you can reopen it later and keep pivoting.
@@ -81,7 +93,7 @@ def myfeed(e, ctx, r):
     r.kv("Score", d["score"])
     r.score_verdict(d["score"], mal=80, sus=40)
     for host in d.get("related", []):
-        r.add("domain", host, "related_to")   # added to the graph and pivoted on
+        r.add("domain", host, "related_to")   # listed as a related indicator in the report
 ```
 
 It shows up in the UI automatically. To make its key editable in Settings, add the key to `API_KEYS` in `osint/settings.py`.
