@@ -1180,10 +1180,11 @@ async function doExport(kind) {
   if (kind === "json") return download(base + ".json", JSON.stringify(await api(`/api/scan/${S.scanId}`), null, 2), "application/json");
   if (kind === "csv") {
     // one row per scanned indicator and source
-    const rows = [["indicator_type", "indicator", "submitted", "overall_verdict", "source", "status", "verdict", "score", "detail"]];
+    const rows = [["indicator_type", "indicator", "submitted", "risk_score", "risk_grade", "source", "status", "verdict", "score", "detail", "looked_up", "from_cache"]];
     for (const n of reportNodes()) {
+      const rk = riskOf(n.id);
       for (const [m, r] of Object.entries(S.results.get(n.id) || {}).sort((a, b) => modLabel(a[0]).localeCompare(modLabel(b[0])))) {
-        rows.push([n.type, n.value, n.root, n.verdict || "", modLabel(m), r.status, r.verdict || "", r.score ?? "", detailText(r)]);
+        rows.push([n.type, n.value, n.root, rk.score ?? "", rk.grade, modLabel(m), r.status, r.verdict || "", r.score ?? "", detailText(r), r.ts ? new Date(r.ts * 1000).toISOString() : "", !!r.cached]);
       }
     }
     return download(base + "-verdicts.csv", rows.map((r) => r.map(csvCell).join(",")).join("\n"), "text/csv");
@@ -1200,48 +1201,145 @@ async function doExport(kind) {
   }
   if (kind === "png") { ensureLaidOut(); return download(base + ".png", S.cy.png({ full: true, scale: 2, bg: "#050506", output: "blob" })); }
   if (kind === "report") return download(base + "-report.html", buildReport(), "text/html");
+  if (kind === "pdf") return exportPDF();
+  if (kind === "stix") {
+    const b = buildStix();
+    if (!b) return toast("Nothing to export yet", "warn");
+    return download(base + "-stix.json", JSON.stringify(b, null, 2), "application/stix+json");
+  }
 }
 // indicators that were actually looked up: submitted IOCs first, then pivots
 function reportNodes() {
   return [...S.nodes.values()].filter((n) => n.root || S.results.has(n.id))
-    .sort((a, b) => (b.root - a.root) || ((VRANK[b.verdict] || 0) - (VRANK[a.verdict] || 0)) || a.value.localeCompare(b.value));
+    .sort((a, b) => (b.root - a.root) || ((riskOf(b.id).score ?? -1) - (riskOf(a.id).score ?? -1)) || a.value.localeCompare(b.value));
 }
-function buildReport() {
+const GRADE_HEX = { critical: "#ef4444", high: "#f97316", medium: "#f59e0b", low: "#a3a83a", clean: "#22c55e", unknown: "#6b6b75" };
+// HTML scan report; with print: true it is a light, paginated layout that opens the print dialog (Save as PDF)
+function buildReport({ print = false } = {}) {
   const scanned = reportNodes(), scannedIds = new Set(scanned.map((n) => n.id));
   const related = [...S.nodes.values()].filter((n) => !scannedIds.has(n.id))
     .sort((a, b) => ((VRANK[b.verdict] || 0) - (VRANK[a.verdict] || 0)) || a.type.localeCompare(b.type) || a.value.localeCompare(b.value));
   const vc = (v) => (v && CFG.verdictColors[v]) || "#6b6b75";
+  const badge = (rk) => `<span class="rk" style="--g:${GRADE_HEX[rk.grade]}"><b>${rk.score ?? "–"}</b>${esc(rk.label)}</span>`;
   const section = (n) => {
-    const res = S.results.get(n.id) || {}, t = tally(res);
-    const rated = t.malicious + t.suspicious + t.clean;
+    const res = S.results.get(n.id) || {}, rk = risk(res), fr = freshness(res);
     const rows = Object.entries(res).sort((a, b) => (VRANK[b[1].verdict] || 0) - (VRANK[a[1].verdict] || 0) || modLabel(a[0]).localeCompare(modLabel(b[0])));
     const good = rows.filter(([, r]) => r.status === "ok" && r.summary.length);
-    return `<section class="ioc"><div class="ioc-h"><div><span class="ty">${esc(typeLabel(n.type))}${n.root ? "" : " · related"}</span><h3>${esc(n.value)}</h3></div>
-      <div class="vd" style="color:${vc(n.verdict)};border-color:${vc(n.verdict)}">${esc(VLABEL[n.verdict] || "No verdict")}<small>${rated ? `${t.malicious + t.suspicious} / ${rated} sources flag it` : "no source gave a verdict"}</small></div></div>
+    return `<section class="ioc" id="ioc-${esc(n.id)}"><div class="ioc-h"><div><span class="ty">${esc(typeLabel(n.type))}${n.root ? "" : " · related"}</span><h3>${esc(n.value)}</h3>
+        <div class="meta">${rk.rated ? `${rk.t.malicious} malicious · ${rk.t.suspicious} suspicious · ${rk.t.clean} clean of ${rk.rated} sources with a verdict` : "No source gave a verdict"}${fr ? ` · results from ${esc(fmtTime(fr.oldest))}${fr.cached ? ` (${fr.cached} cached)` : ""}` : ""}</div></div>
+      <div class="vd">${badge(rk)}<small>overall risk</small></div></div>
       ${n.tags.length ? `<p class="meta">Tags: ${esc(n.tags.join(", "))}</p>` : ""}
-      <table><tr><th>Source</th><th>Result</th><th>Score</th><th>Detail</th></tr>${rows.map(([m, r]) => `<tr><td>${esc(modLabel(m))}</td><td class="v" style="color:${r.status === "ok" ? vc(r.verdict) : "#80808a"}">${esc(r.status === "ok" ? r.verdict || "info" : (SRC_STATUS[r.status] || SRC_STATUS.error).label)}</td><td>${esc(r.score ?? "")}</td><td>${esc(detailText(r))}</td></tr>`).join("")}</table>
-      ${good.length ? `<details><summary>Full findings from ${good.length} source${good.length === 1 ? "" : "s"}</summary>${good.map(([m, r]) =>
+      <table><tr><th>Source</th><th>Result</th><th>Score</th><th>Detail</th><th>Looked up</th></tr>${rows.map(([m, r]) => `<tr><td>${esc(modLabel(m))}</td><td class="v" style="color:${r.status === "ok" ? vc(r.verdict) : "#80808a"}">${esc(r.status === "ok" ? r.verdict || "info" : (SRC_STATUS[r.status] || SRC_STATUS.error).label)}</td><td>${esc(r.score ?? "")}</td><td>${esc(detailText(r))}</td><td class="nw">${r.ts ? esc(ago(r.ts)) + (r.cached ? " (cache)" : "") : ""}</td></tr>`).join("")}</table>
+      ${good.length ? `<details ${print ? "open" : ""}><summary>Full findings from ${good.length} source${good.length === 1 ? "" : "s"}</summary>${good.map(([m, r]) =>
         `<div class="src"><h4>${esc(modLabel(m))}${r.verdict ? ` — <span style="color:${vc(r.verdict)}">${r.verdict}</span>` : ""}</h4><dl>${r.summary.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl></div>`).join("")}</details>` : ""}</section>`;
   };
   let img = "";
   if (related.length) { ensureLaidOut(); img = S.cy.png({ full: true, scale: 1.5, bg: "#050506", maxWidth: 2400 }); }
-  const cnt = (v) => scanned.filter((n) => n.verdict === v).length;
+  const grades = {}; for (const n of scanned) { const g = riskOf(n.id).grade; grades[g] = (grades[g] || 0) + 1; }
+  const seeds = scanned.filter((n) => n.root);
+  const triage = scanned.length > 1 ? `<h2>Summary</h2><table><tr><th>Risk</th><th>IOC</th><th>Type</th><th>Flagged by</th><th>Tags</th></tr>${scanned.map((n) => {
+    const rk = riskOf(n.id);
+    return `<tr><td class="nw">${badge(rk)}</td><td><a href="#ioc-${esc(n.id)}">${esc(n.value)}</a>${n.root ? "" : ' <span class="meta">(related)</span>'}</td><td>${esc(typeLabel(n.type))}</td><td>${rk.rated ? `${rk.t.malicious + rk.t.suspicious} / ${rk.rated}` : "–"}</td><td>${esc(n.tags.slice(0, 8).join(", "))}</td></tr>`;
+  }).join("")}</table>` : "";
+  const C = print
+    ? { bg: "#ffffff", fg: "#18181b", panel: "#f6f6f7", panel2: "#efeff1", line: "#dcdce0", muted: "#5f5f6a", sub: "#3f3f46" }
+    : { bg: "#050506", fg: "#e4e4e7", panel: "#0a0a0c", panel2: "#0e0e11", line: "#1f1f25", muted: "#80808a", sub: "#b4b4bb" };
   return `<!doctype html><html><head><meta charset="utf-8"><title>ARACHNE scan report — ${esc(S.title)}</title><style>
-  body{background:#050506;color:#e4e4e7;font:13px/1.5 Inter,Segoe UI,sans-serif;margin:0;padding:32px;max-width:1200px;margin:auto}
-  h1{font:700 22px Consolas,monospace;letter-spacing:.06em}h2{font:600 12px Consolas,monospace;letter-spacing:.14em;text-transform:uppercase;color:#80808a;margin-top:34px;border-bottom:1px solid #1f1f25;padding-bottom:6px}
-  .meta{color:#80808a}.tiles{display:flex;gap:10px;margin:18px 0;flex-wrap:wrap}.tile{background:#0e0e11;border:1px solid #1f1f25;border-radius:8px;padding:10px 16px}.tile b{display:block;font:600 22px Consolas,monospace}
-  .ioc{background:#0a0a0c;border:1px solid #1f1f25;border-radius:10px;padding:16px 18px;margin:12px 0}.ioc-h{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:10px}
-  .ioc-h h3{margin:2px 0 0;font:700 16px Consolas,monospace;word-break:break-all}.ty{font:600 10px Consolas,monospace;letter-spacing:.12em;text-transform:uppercase;color:#80808a}
-  .vd{font:700 14px Consolas,monospace;text-transform:uppercase;letter-spacing:.08em;border:1px solid;border-radius:8px;padding:6px 12px;text-align:right;white-space:nowrap}.vd small{display:block;font:400 11px Inter,sans-serif;text-transform:none;letter-spacing:0;color:#80808a}
-  img{max-width:100%;border:1px solid #1f1f25;border-radius:10px}table{border-collapse:collapse;width:100%;font:12px Consolas,monospace}th,td{text-align:left;padding:5px 8px;border-bottom:1px solid #1f1f25;vertical-align:top}th{color:#80808a}
-  td.v{font-weight:700;text-transform:uppercase;font-size:11px}details{background:#0e0e11;border:1px solid #1f1f25;border-radius:8px;padding:8px 12px;margin:10px 0 0}summary{cursor:pointer;font-family:Consolas,monospace;color:#b4b4bb}
-  .src h4{margin:10px 0 4px;font-size:12px}dl{display:grid;grid-template-columns:220px 1fr;gap:2px 10px;margin:0;font-size:12px}dt{color:#80808a}dd{margin:0;font-family:Consolas,monospace;word-break:break-word}</style></head><body>
-  <h1>ARACHNE · IOC SCAN REPORT</h1><div class="meta">IOCs: ${esc(scanned.filter((n) => n.root).map((n) => n.value).join(", "))}<br>Generated ${esc(new Date().toLocaleString())}</div>
-  <div class="tiles"><div class="tile"><b>${scanned.length}</b>IOCs scanned</div><div class="tile"><b style="color:#ef4444">${cnt("malicious")}</b>malicious</div><div class="tile"><b style="color:#f59e0b">${cnt("suspicious")}</b>suspicious</div><div class="tile"><b style="color:#22c55e">${cnt("clean")}</b>clean</div><div class="tile"><b>${related.length}</b>related indicators</div></div>
+  body{background:${C.bg};color:${C.fg};font:13px/1.5 Inter,Segoe UI,sans-serif;margin:0 auto;padding:32px;max-width:1200px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  a{color:inherit}
+  h1{font:700 22px Consolas,monospace;letter-spacing:.06em;margin:0 0 6px}h2{font:600 12px Consolas,monospace;letter-spacing:.14em;text-transform:uppercase;color:${C.muted};margin-top:34px;border-bottom:1px solid ${C.line};padding-bottom:6px}
+  .meta{color:${C.muted}}.tiles{display:flex;gap:10px;margin:18px 0;flex-wrap:wrap}.tile{background:${C.panel2};border:1px solid ${C.line};border-radius:8px;padding:10px 16px}.tile b{display:block;font:600 22px Consolas,monospace}
+  .ioc{background:${C.panel};border:1px solid ${C.line};border-radius:10px;padding:16px 18px;margin:12px 0;break-inside:avoid-page}.ioc-h{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:10px}
+  .ioc-h h3{margin:2px 0 4px;font:700 16px Consolas,monospace;word-break:break-all}.ty{font:600 10px Consolas,monospace;letter-spacing:.12em;text-transform:uppercase;color:${C.muted}}
+  .vd{text-align:right;white-space:nowrap}.vd small{display:block;font:400 11px Inter,sans-serif;color:${C.muted};margin-top:4px}
+  .rk{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--g);border-radius:6px;padding:2px 9px 2px 2px;font:700 10.5px Consolas,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--g);white-space:nowrap}
+  .rk b{background:var(--g);color:#fff;border-radius:4px;padding:1px 6px;min-width:22px;text-align:center}
+  .vd .rk{font-size:13px}.vd .rk b{font-size:18px;padding:3px 10px}
+  img{max-width:100%;border:1px solid ${C.line};border-radius:10px}table{border-collapse:collapse;width:100%;font:12px Consolas,monospace}th,td{text-align:left;padding:5px 8px;border-bottom:1px solid ${C.line};vertical-align:top}th{color:${C.muted}}
+  td.v{font-weight:700;text-transform:uppercase;font-size:11px}td.nw{white-space:nowrap}details{background:${C.panel2};border:1px solid ${C.line};border-radius:8px;padding:8px 12px;margin:10px 0 0}summary{cursor:pointer;font-family:Consolas,monospace;color:${C.sub}}
+  .src{break-inside:avoid}.src h4{margin:10px 0 4px;font-size:12px}dl{display:grid;grid-template-columns:220px 1fr;gap:2px 10px;margin:0;font-size:12px}dt{color:${C.muted}}dd{margin:0;font-family:Consolas,monospace;word-break:break-word}
+  @page{size:A4;margin:14mm}@media print{body{padding:0;max-width:none}h2{break-after:avoid}}</style></head><body>
+  <h1>ARACHNE · IOC SCAN REPORT</h1><div class="meta">${seeds.length > 1 ? `${seeds.length} IOCs submitted` : `IOC: ${esc(seeds.map((n) => n.value).join(", "))}`}<br>Scan started ${esc(fmtTime(S.created))} · report generated ${esc(new Date().toLocaleString())}</div>
+  <div class="tiles"><div class="tile"><b>${scanned.length}</b>IOCs scanned</div>${GRADES.map(([, g, label]) => grades[g] ? `<div class="tile"><b style="color:${GRADE_HEX[g]}">${grades[g]}</b>${g === "clean" ? "clean" : label.toLowerCase() + " risk"}</div>` : "").join("")}${grades.unknown ? `<div class="tile"><b>${grades.unknown}</b>unrated</div>` : ""}<div class="tile"><b>${related.length}</b>related indicators</div></div>
+  <p class="meta">Overall risk is 0–100: a malicious verdict from any source sets a floor of 50 (suspicious: 25), and the share of sources that flag the IOC fills the rest. Critical ≥ 80, High ≥ 60, Medium ≥ 35.</p>
+  ${triage}
   <h2>Results by IOC</h2>${scanned.map(section).join("")}
   ${related.length ? `<h2>Related indicators</h2><table><tr><th>Type</th><th>Value</th><th>Verdict</th><th>Found by</th></tr>${related.map((n) => `<tr><td>${esc(typeLabel(n.type))}</td><td>${esc(n.value)}</td><td style="color:${vc(n.verdict)}">${n.verdict || "—"}</td><td>${esc(n.source ? modLabel(n.source) : "")}</td></tr>`).join("")}</table>
   <h2>Pivot graph</h2><img src="${img}">` : ""}
+  ${print ? "<script>addEventListener('load', () => setTimeout(() => print(), 400));</script>" : ""}
   </body></html>`;
+}
+// open the print layout in a new tab and let the browser's "Save as PDF" do the rest
+function exportPDF() {
+  const w = window.open(URL.createObjectURL(new Blob([buildReport({ print: true })], { type: "text/html" })), "_blank");
+  if (!w) toast("Pop-up blocked - allow pop-ups for ARACHNE to export a PDF", "error", 6000);
+  else toast("Choose “Save as PDF” in the print dialog", "info", 5000);
+}
+
+// ------------------------------------------------------------------ STIX 2.1
+const uuid4 = () => (crypto.randomUUID ? crypto.randomUUID() : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) => (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16)));
+const stixQ = (v) => String(v).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+function stixPattern(n) {
+  const v = stixQ(n.value);
+  switch (n.type) {
+    case "ipv4": return `[ipv4-addr:value = '${v}']`;
+    case "ipv6": return `[ipv6-addr:value = '${v}']`;
+    case "domain": return `[domain-name:value = '${v}']`;
+    case "url": return `[url:value = '${v}']`;
+    case "email": return `[email-addr:value = '${v}']`;
+    case "username": return `[user-account:account_login = '${v}']`;
+    case "asn": { const num = parseInt(String(n.value).replace(/\D/g, ""), 10); return Number.isFinite(num) ? `[autonomous-system:number = ${num}]` : null; }
+    case "hash": { const alg = { 32: "MD5", 40: "SHA-1", 64: "SHA-256", 128: "SHA-512" }[n.value.length]; return alg ? `[file:hashes.'${alg}' = '${v}']` : null; }
+    default: return null;
+  }
+}
+// STIX 2.1 bundle: an indicator per scanned IOC (confidence = risk score), CVEs as vulnerabilities,
+// malware families found by the sources linked with "indicates", all wrapped in a report
+function buildStix() {
+  const now = new Date().toISOString(), created = new Date((S.created || Date.now() / 1000) * 1000).toISOString();
+  const identity = { type: "identity", spec_version: "2.1", id: `identity--${uuid4()}`, created: now, modified: now, name: "ARACHNE IOC Scanner", identity_class: "system" };
+  const objs = [identity], refs = [], malware = new Map();
+  const malwareFor = (name) => {
+    if (!malware.has(name)) {
+      const m = { type: "malware", spec_version: "2.1", id: `malware--${uuid4()}`, created: now, modified: now, created_by_ref: identity.id, name, is_family: true };
+      malware.set(name, m); objs.push(m); refs.push(m.id);
+    }
+    return malware.get(name);
+  };
+  for (const n of reportNodes()) {
+    const rk = riskOf(n.id), res = S.results.get(n.id) || {};
+    const flagged = Object.entries(res).filter(([, r]) => r.status === "ok" && VRANK[r.verdict] >= 2).map(([m, r]) => `${modLabel(m)}: ${r.verdict}${r.score != null ? ` (${r.score})` : ""}`);
+    const desc = `ARACHNE overall risk ${rk.score ?? "n/a"} (${rk.label}). ${rk.rated ? `${rk.t.malicious} malicious, ${rk.t.suspicious} suspicious, ${rk.t.clean} clean of ${rk.rated} sources.` : "No source verdicts."}${flagged.length ? ` Flagged by: ${flagged.join("; ")}.` : ""}`;
+    if (n.type === "cve") {
+      const vul = { type: "vulnerability", spec_version: "2.1", id: `vulnerability--${uuid4()}`, created: now, modified: now, created_by_ref: identity.id, name: n.value, description: desc,
+        external_references: [{ source_name: "cve", external_id: n.value }] };
+      objs.push(vul); refs.push(vul.id); continue;
+    }
+    const pattern = stixPattern(n);
+    if (!pattern) continue;
+    const ind = { type: "indicator", spec_version: "2.1", id: `indicator--${uuid4()}`, created: now, modified: now, created_by_ref: identity.id,
+      name: n.value, description: desc, pattern, pattern_type: "stix", valid_from: created,
+      indicator_types: [rk.grade === "critical" || rk.grade === "high" ? "malicious-activity" : rk.grade === "clean" ? "benign" : rk.grade === "unknown" ? "unknown" : "anomalous-activity"],
+      labels: n.tags.slice(0, 20) };
+    if (rk.score != null) ind.confidence = rk.score;
+    if (!ind.labels.length) delete ind.labels;
+    objs.push(ind); refs.push(ind.id);
+    // malware families the sources linked to this IOC
+    for (const e of S.edges.values()) {
+      if (e.source !== n.id) continue;
+      const o = S.nodes.get(e.target);
+      if (o?.type !== "malware") continue;
+      const m = malwareFor(o.value);
+      const rel = { type: "relationship", spec_version: "2.1", id: `relationship--${uuid4()}`, created: now, modified: now, created_by_ref: identity.id, relationship_type: "indicates", source_ref: ind.id, target_ref: m.id };
+      objs.push(rel); refs.push(rel.id);
+    }
+  }
+  if (!refs.length) return null;
+  const report = { type: "report", spec_version: "2.1", id: `report--${uuid4()}`, created: now, modified: now, created_by_ref: identity.id,
+    name: `ARACHNE IOC scan — ${S.title}`, published: now, report_types: ["indicator"], object_refs: refs,
+    description: `IOC scan started ${created}. Indicator confidence is the ARACHNE overall risk score (0-100).` };
+  objs.push(report);
+  return { type: "bundle", id: `bundle--${uuid4()}`, objects: objs };
 }
 
 // ------------------------------------------------------------------ input detection

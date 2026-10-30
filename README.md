@@ -23,7 +23,7 @@ It runs locally and only needs Python. There's nothing to install.
 
 ## How it works
 
-1. **Scan.** Paste one or more IOCs into the search bar and press **Scan**. The type is detected automatically.
+1. **Scan.** Paste one or more IOCs into the search bar and press **Scan**. The type is detected automatically. For a longer list, use the **bulk scan** button next to it to paste or upload a file.
 2. **Read the report.** Each enabled source is queried in parallel and the report fills in live: the overall verdict, how many sources flag the IOC, a table with every source's verdict, score and key detail, and the full findings from each one. Sources that need an API key you haven't added are listed separately, so you can see what you're missing.
 3. **Pivot (optional).** The report lists every related indicator the sources found. Click **Scan** on any of them, or **Pivot: scan all**, to look them up too, then open the **Graph** view to see how everything connects. To pivot automatically, switch on **Pivot** next to the search bar before scanning and pick a depth.
 
@@ -55,13 +55,15 @@ So you don't have to paste them in again on a new machine or after a fresh clone
 
 ## Features
 
-- **IOC scan report:** overall verdict, a detection ring (how many sources flag the IOC), a verdict table with one row per source, and detailed findings. Results stream in live as each lookup finishes.
-- **Multiple IOCs:** paste several, comma- or newline-separated, and switch between their reports.
+- **IOC scan report:** a headline risk score and grade, a detection ring (how many sources flag the IOC), a verdict table with one row per source, and detailed findings. Results stream in live as each lookup finishes.
+- **Overall risk score:** every IOC gets a 0–100 score and a grade (Critical, High, Medium, Low, Clean) combined from the per-source verdicts. Any malicious verdict sets a floor of 50 (suspicious: 25), and the share of sources that flag the IOC fills the rest.
+- **Bulk scanning:** paste, upload or drop a list of up to 500 IOCs (defanged values are fine). You get a combined triage report sorted by risk, with a filter, a "medium and above" toggle and one-click copy of the flagged IOCs.
+- **Freshness:** every source result shows how old it is and whether it came from the cache. **Re-scan (skip cache)** runs every source again, for one IOC or a whole bulk scan.
 - **Pivoting when you want it:** scan related indicators one at a time or all at once from the report, or turn on auto-pivot with configurable depth and node limits. A noise filter stops it crawling through CDNs and big providers.
 - **Graph view:** everything found, mapped as a web, with malicious and suspicious nodes highlighted. Large sets of one type (e.g. 40 domains on one IP) collapse into a single box.
 - **API key import/export:** back up your keys to a file and load them back in one click.
 - **Settings for nearly everything:** turn modules on or off, set rate limits, add custom username sites and lookup links, change colours, set a proxy, and more.
-- **Exports:** HTML scan report, per-source verdicts CSV, JSON, a plain IOC list or a PNG of the graph.
+- **Exports:** scan report as PDF (via the browser's Save as PDF) or HTML, a STIX 2.1 bundle (an indicator per IOC with the risk score as confidence, plus linked malware families) for TIPs and SIEMs, per-source verdicts CSV, JSON, a plain IOC list or a PNG of the graph.
 - **Saved scans:** every scan is saved, so you can reopen it later and keep pivoting.
 
 ## Sources
