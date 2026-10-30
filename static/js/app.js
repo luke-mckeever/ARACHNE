@@ -1,5 +1,5 @@
 "use strict";
-/* ARACHNE front-end: graph, live event stream, panels, exports. */
+/* ARACHNE front-end: scan report, pivot graph, live event stream, panels, exports. */
 
 // ------------------------------------------------------------------ helpers
 const $ = (s, r = document) => r.querySelector(s);
@@ -64,6 +64,7 @@ const S = {
   hiddenTypes: new Set(), hiddenVerdicts: new Set(), hiddenNodes: new Set(), search: "",
   es: null, evIdx: 0, logs: [], stats: {}, pendingNodes: [], pendingEdges: [], flushT: null,
   cy: null, hasFcose: false, layoutRun: null, firstLayout: true,
+  view: "report", needLayout: false,
 };
 const tc = (t) => (S.ui.monochrome ? "#a1a1aa" : (S.ui.typeColors || {})[t] || CFG.typeColors[t] || "#a1a1aa");
 const glyph = (t) => CFG.glyph[t] || t.slice(0, 3).toUpperCase();
@@ -216,15 +217,18 @@ function flush() {
   applyFilters();
   if (added && S.ui.autoLayout) relayoutSoon();
   renderListSoon(); renderCounts();
+  if (S.view === "report") renderDetailsSoon();
 }
 function runLayout(opts = {}) {
   if (!S.cy || S.cy.nodes().empty()) return;
+  // the graph container has no size while the report view is showing; lay out when it is opened
+  if (S.view !== "graph" && !opts.offscreen) { S.needLayout = true; return; }
   if (S.layoutRun) { try { S.layoutRun.stop(); } catch { /* */ } }
   let name = S.ui.layout || "fcose";
   if (name === "fcose" && !S.hasFcose) name = "cose";
   const eles = S.cy.elements().filter((el) => el.style("display") !== "none");
   const big = eles.nodes().length > 350;
-  const o = { name, animate: !!S.ui.animate && !big, animationDuration: 450, fit: opts.fit ?? false, padding: 50 };
+  const o = { name, animate: !!S.ui.animate && !big && !opts.offscreen, animationDuration: 450, fit: opts.fit ?? false, padding: 50 };
   if (name === "fcose") Object.assign(o, { quality: big ? "draft" : "default", randomize: !!opts.randomize, nodeRepulsion: 7000,
     idealEdgeLength: 85, edgeElasticity: 0.45, gravity: 0.3, gravityRange: 3.0, numIter: 2500, nodeSeparation: 70, packComponents: true });
   if (name === "cose") Object.assign(o, { randomize: !!opts.randomize, nodeRepulsion: () => 9000, idealEdgeLength: () => 80, numIter: 1200, componentSpacing: 80 });
@@ -509,7 +513,7 @@ function select(id, center = true) {
   if (S.selected) {
     const el = S.cy.getElementById(S.selected);
     el.select();
-    if (center && el.visible()) S.cy.animate({ center: { eles: el }, duration: 300 });
+    if (center && S.view === "graph" && el.visible()) S.cy.animate({ center: { eles: el }, duration: 300 });
   }
   $$(".ent.sel").forEach((e) => e.classList.remove("sel"));
   if (S.selected) $(`.ent[data-id="${CSS.escape(S.selected)}"]`)?.classList.add("sel");
@@ -520,6 +524,9 @@ function vbadge(v, score) { return v ? `<span class="vbadge ${v}">${v}${score &&
 function fillTpl(url, v) { return url.replaceAll("{value}", v).replaceAll("{enc}", encodeURIComponent(v)).replaceAll("{b64}", encodeURIComponent(b64(v))); }
 
 function renderDetails() {
+  if (S.view === "report") renderReport(); else renderPanel();
+}
+function renderPanel() {
   const box = $("#details");
   const n = S.selected && S.nodes.get(S.selected);
   if (!n) { box.innerHTML = overviewHTML(); return; }
@@ -588,13 +595,44 @@ function srcGroup(key, title, rows, open, extra = "") {
   return `<details class="src-group" data-group="${key}" ${isOpen ? "open" : ""}><summary><span>${title}</span><em>${rows.length}</em></summary>
     <div class="src-list">${rows.join("")}</div>${extra}</details>`;
 }
-function intelHTML(n, res, busy) {
+// split one indicator's module results into display buckets
+function sortResults(res) {
   const entries = Object.entries(res);
   const rank = (r) => (VRANK[r.verdict] || 0) * 10 + (r.entities?.length ? 1 : 0);
-  const good = entries.filter(([, r]) => r.status === "ok").sort((a, b) => rank(b[1]) - rank(a[1]));
-  const failed = entries.filter(([, r]) => r.status === "error" || r.status === "ratelimited");
-  const empty = entries.filter(([, r]) => r.status === "notfound");
-  const nokey = entries.filter(([, r]) => r.status === "skipped");
+  return {
+    entries,
+    good: entries.filter(([, r]) => r.status === "ok").sort((a, b) => rank(b[1]) - rank(a[1])),
+    failed: entries.filter(([, r]) => r.status === "error" || r.status === "ratelimited"),
+    empty: entries.filter(([, r]) => r.status === "notfound"),
+    nokey: entries.filter(([, r]) => r.status === "skipped"),
+  };
+}
+function cardHTML(m, r) {
+  const col = S.collapsed.has(m);
+  const meta = r.elapsed != null ? `${r.elapsed}s` : "";
+  return `<div class="card ${r.verdict || ""} ${col ? "collapsed" : ""}" data-mod="${m}" id="card-${m}">
+    <div class="card-h" data-toggle="${m}">${ICON.chev}<b title="${esc(modLabel(m))}">${esc(modLabel(m))}</b>${r.verdict ? vbadge(r.verdict, r.score) : ""}<small title="${r.cached ? "Served from cache — ↻ to refresh" : "Lookup time"}">${r.cached ? "● " : ""}${meta}</small>
+    <button class="icon-btn card-act" data-rerun="${m}" title="Run again (bypass cache)">${ICON.redo}</button></div>
+    <div class="card-b">${r.summary.length ? kvHTML(r.summary) : ""}${r.message ? `<div class="msg">${esc(r.message)}</div>` : ""}
+    ${r.tags?.length ? `<div class="tags">${r.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>` : ""}
+    ${tablesHTML(r.tables || [])}
+    ${r.links?.length || r.entities?.length ? `<div class="card-foot">${(r.links || []).map((l) => `<a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.label)} ↗</a>`).join("")}${r.entities?.length ? `<span class="linked">${r.entities.length} linked indicator${r.entities.length > 1 ? "s" : ""}</span>` : ""}</div>` : ""}</div></div>`;
+}
+function otherSourcesHTML({ failed, empty, nokey }) {
+  if (!failed.length && !empty.length && !nokey.length) return "";
+  return `<div class="src-other">` +
+    srcGroup("failed", "Failed", failed.map(([m, r]) => srcRow(m, r)), true) +
+    srcGroup("empty", "No data", empty.map(([m, r]) => srcRow(m, r)), false) +
+    srcGroup("nokey", "Needs API key", nokey.map(([m, r]) => srcRow(m, r)), false,
+      `<div class="src-cta"><button class="btn xs" data-open-settings="keys">Add API keys</button><button class="btn xs ghost" data-open-settings="modules">Disable these modules</button></div>`) +
+    `</div>`;
+}
+function runningHTML(busy) {
+  return busy.size ? `<div class="src-running"><span class="spinner"></span>${[...busy.keys()].map((m) => `<span>${esc(modLabel(m))}</span>`).join("")}</div>` : "";
+}
+function intelHTML(n, res, busy) {
+  const b = sortResults(res);
+  const { entries, good, failed, empty, nokey } = b;
   let html = "";
   if (entries.length || busy.size) {
     const seg = (cls, n_, label) => n_ ? `<span class="sum-item ${cls}"><i></i><b>${n_}</b>${label}</span>` : "";
@@ -602,28 +640,173 @@ function intelHTML(n, res, busy) {
       <div class="sum-bar">${[["ok", good.length], ["err", failed.length], ["none", empty.length], ["key", nokey.length]].map(([c, v]) => v ? `<i class="${c}" style="flex:${v}"></i>` : "").join("")}</div>
       <div class="sum-items">${seg("ok", good.length, "with data")}${seg("err", failed.length, "failed")}${seg("none", empty.length, "no data")}${seg("key", nokey.length, "need key")}${busy.size ? `<span class="sum-item run"><i></i><b>${busy.size}</b>running</span>` : ""}</div></div>`;
   }
-  if (busy.size) html += `<div class="src-running"><span class="spinner"></span>${[...busy.keys()].map((m) => `<span>${esc(modLabel(m))}</span>`).join("")}</div>`;
-  for (const [m, r] of good) {
-    const col = S.collapsed.has(m);
-    const meta = r.elapsed != null ? `${r.elapsed}s` : "";
-    html += `<div class="card ${r.verdict || ""} ${col ? "collapsed" : ""}" data-mod="${m}">
-      <div class="card-h" data-toggle="${m}">${ICON.chev}<b title="${esc(modLabel(m))}">${esc(modLabel(m))}</b>${r.verdict ? vbadge(r.verdict, r.score) : ""}<small title="${r.cached ? "Served from cache — ↻ to refresh" : "Lookup time"}">${r.cached ? "● " : ""}${meta}</small>
-      <button class="icon-btn card-act" data-rerun="${m}" title="Run again (bypass cache)">${ICON.redo}</button></div>
-      <div class="card-b">${r.summary.length ? kvHTML(r.summary) : ""}${r.message ? `<div class="msg">${esc(r.message)}</div>` : ""}
-      ${r.tags?.length ? `<div class="tags">${r.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>` : ""}
-      ${tablesHTML(r.tables || [])}
-      ${r.links?.length || r.entities?.length ? `<div class="card-foot">${(r.links || []).map((l) => `<a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.label)} ↗</a>`).join("")}${r.entities?.length ? `<span class="linked">${r.entities.length} linked indicator${r.entities.length > 1 ? "s" : ""}</span>` : ""}</div>` : ""}</div></div>`;
+  html += runningHTML(busy);
+  html += good.map(([m, r]) => cardHTML(m, r)).join("");
+  if (!good.length && !busy.size) html += `<div class="empty-note">${entries.length ? "No source returned data for this indicator." : S.meta.types[n.type]?.pivotable ? (n.noise ? "Noise indicator — not auto-pivoted. Use <b>Pivot</b> to look it up anyway." : "Not scanned yet. Click <b>Pivot</b> or double-click the node to run all enabled modules.") : "Informational node — nothing to look up. See the Lookup tab for manual searches."}</div>`;
+  return html + otherSourcesHTML(b);
+}
+
+// ------------------------------------------------------------------ scan report (main view)
+const VLABEL = { malicious: "Malicious", suspicious: "Suspicious", clean: "Clean" };
+// the indicator the report is about: the selected one, else the first scanned IOC
+function subjectId() {
+  if (S.selected && S.nodes.has(S.selected)) return S.selected;
+  for (const n of S.nodes.values()) if (n.root) return n.id;
+  return null;
+}
+function tally(res) {
+  const t = { malicious: 0, suspicious: 0, clean: 0, info: 0, nodata: 0, nokey: 0, failed: 0 };
+  for (const r of Object.values(res)) {
+    if (r.status === "ok") t[VLABEL[r.verdict] ? r.verdict : "info"]++;
+    else if (r.status === "notfound") t.nodata++;
+    else if (r.status === "skipped") t.nokey++;
+    else t.failed++;
   }
-  if (!good.length && !busy.size) html += `<div class="empty-note">${entries.length ? "No source returned data for this indicator." : S.meta.types[n.type]?.pivotable ? (n.noise ? "Noise indicator — not auto-pivoted. Use <b>Pivot</b> to look it up anyway." : "Not looked up yet. Click <b>Pivot</b> or double-click the node to run all enabled modules.") : "Informational node — nothing to look up. See the Lookup tab for manual searches."}</div>`;
-  if (failed.length || empty.length || nokey.length) {
-    html += `<div class="src-other">`;
-    html += srcGroup("failed", "Failed", failed.map(([m, r]) => srcRow(m, r)), true);
-    html += srcGroup("empty", "No data", empty.map(([m, r]) => srcRow(m, r)), false);
-    html += srcGroup("nokey", "Needs API key", nokey.map(([m, r]) => srcRow(m, r)), false,
-      `<div class="src-cta"><button class="btn xs" data-open-settings="keys">Add API keys</button><button class="btn xs ghost" data-open-settings="modules">Disable these modules</button></div>`);
-    html += `</div>`;
+  return t;
+}
+function detailText(r) {
+  if (r.status !== "ok") return reasonText(r);
+  const kv = (r.summary || []).slice(0, 2).map(([k, v]) => `${k}: ${v === true ? "yes" : v === false ? "no" : v}`);
+  return kv.join(" · ") || r.message || (r.tags || []).slice(0, 4).join(", ");
+}
+function scoreRing(t) {
+  const rated = t.malicious + t.suspicious + t.clean, flagged = t.malicious + t.suspicious;
+  const pct = (x) => (rated ? (x / rated) * 100 : 0);
+  const a = pct(t.malicious), b = a + pct(t.suspicious), c = b + pct(t.clean);
+  const bg = rated ? `conic-gradient(var(--mal) 0 ${a}%, var(--sus) ${a}% ${b}%, var(--ok) ${b}% ${c}%, var(--panel3) ${c}% 100%)` : "var(--panel3)";
+  return `<div class="ring" style="background:${bg}"><div><b>${rated ? flagged : "–"}</b><small>${rated ? `/ ${rated}` : "no verdicts"}</small></div></div>`;
+}
+function reportEmptyHTML() {
+  const keys = Object.keys(S.settings?.api_keys || {}).length;
+  const enabled = S.meta ? S.meta.modules.filter((m) => (S.settings.modules?.[m.name]?.enabled ?? m.enabled)).length : 0;
+  return `<div class="empty rep-empty">
+    <svg viewBox="0 0 200 200" class="web-art"><g fill="none" stroke="currentColor">
+      <circle cx="100" cy="100" r="18" stroke-width="1"/><circle cx="100" cy="100" r="42" stroke-width=".8" opacity=".7"/>
+      <circle cx="100" cy="100" r="68" stroke-width=".6" opacity=".45"/><circle cx="100" cy="100" r="94" stroke-width=".5" opacity=".25"/>
+      <path d="M100 4v192M4 100h192M32 32l136 136M168 32 32 168" stroke-width=".6" opacity=".45"/></g>
+      <circle cx="100" cy="100" r="5" fill="currentColor"/></svg>
+    <h1>Scan an IOC.</h1>
+    <p>Paste an IP, domain, URL, file hash, email, username, ASN or CVE above. ARACHNE checks it against every enabled source and builds one report: a verdict from each service, the details behind it, and any related indicators you can pivot on.</p>
+    <div class="examples">${CFG.examples.map(([k, v]) => `<button data-ex="${esc(v)}"><b>${k}</b>${esc(v)}</button>`).join("")}</div>
+    <p class="hint">${enabled} of ${S.meta?.modules.length || 0} sources enabled · ${keys} of ${S.meta?.api_keys.length || 0} API keys configured · <a href="#" data-open-settings="keys">Add API keys</a></p>
+  </div>`;
+}
+function renderReport() {
+  const box = $("#report"), wrap = $("#reportWrap");
+  const st = wrap.scrollTop;
+  box.innerHTML = reportHTML();
+  wrap.scrollTop = st;
+}
+function reportHTML() {
+  if (!S.scanId) return reportEmptyHTML();
+  const id = subjectId(), n = id && S.nodes.get(id);
+  if (!n) return `<div class="rep"><div class="src-running"><span class="spinner"></span>Starting scan…</div></div>`;
+  const res = S.results.get(n.id) || {}, busy = S.busy.get(n.id) || new Map();
+  const t = tally(res), b = sortResults(res);
+  const piv = S.meta.types[n.type]?.pivotable;
+  const done = Object.keys(res).length;
+
+  // IOCs in this scan: the submitted ones, then any related indicator that has been scanned since
+  const scanned = [...S.nodes.values()].filter((x) => x.root || S.results.has(x.id) || S.busy.get(x.id)?.size)
+    .sort((a, c) => (c.root - a.root) || ((VRANK[c.verdict] || 0) - (VRANK[a.verdict] || 0)));
+  const iocBar = scanned.length > 1 ? `<div class="rep-iocs"><span class="rep-lbl">IOCs in this scan</span>${scanned.map((x) =>
+    `<button class="rep-ioc ${x.id === n.id ? "on" : ""}" data-goto="${esc(x.id)}" title="${esc(x.value)}"><i style="background:${x.verdict ? CFG.verdictColors[x.verdict] || "var(--line3)" : "var(--line3)"}"></i><span class="ty" style="color:${tc(x.type)}">${esc(glyph(x.type))}</span>${esc(shortLabel(x))}</button>`).join("")}</div>` : "";
+
+  const verdict = VLABEL[n.verdict] || (done ? "No verdict" : "Pending");
+  const head = `<div class="rep-head ${n.verdict || ""}">
+    <div class="rep-id">
+      <div class="d-top">${tchip(n.type)}${n.root ? '<span class="vbadge">submitted</span>' : '<span class="vbadge">related</span>'}${n.noise ? '<span class="vbadge" title="Matches the noise filter">noise</span>' : ""}${n.private ? '<span class="vbadge">private</span>' : ""}</div>
+      <div class="d-val rep-val"><span>${esc(n.value)}</span><button class="icon-btn" data-copy="${esc(n.value)}" title="Copy">${ICON.copy}</button></div>
+      ${n.label && n.label !== n.value ? `<div class="d-sub">${esc(n.label)}</div>` : ""}
+      <div class="rep-verdict"><span class="rep-vword ${n.verdict || ""}">${verdict}</span>${n.score != null && VRANK[n.verdict] >= 2 ? `<span class="rep-vscore">score ${esc(n.score)}</span>` : ""}</div>
+      ${n.tags.length ? `<div class="tags">${n.tags.slice(0, 16).map((x) => `<span class="tag">${esc(x)}</span>`).join("")}${n.tags.length > 16 ? `<span class="tag">+${n.tags.length - 16}</span>` : ""}</div>` : ""}
+      <div class="d-actions">
+        ${piv ? `<button class="btn sm" data-rescan="${esc(n.id)}" title="Run every enabled source again, bypassing the cache">${ICON.redo}Re-scan</button>
+        <select class="btn sm" data-runmod="${esc(n.id)}" style="max-width:170px"><option value="">Run one source…</option>${modulesFor(n.type).map((m) => `<option value="${m.name}">${esc(m.label)}</option>`).join("")}</select>` : ""}
+        <button class="btn sm ghost" data-view="graph" title="Open the pivot graph">${ICON.pivot}Graph</button>
+      </div>
+    </div>
+    <div class="rep-score">${scoreRing(t)}<span>sources flag this IOC</span>
+      <div class="rep-progress">${busy.size ? `<span class="spinner"></span>${done} of ${done + busy.size} sources answered` : `${done} source${done === 1 ? "" : "s"} queried`}</div></div>
+  </div>`;
+
+  const tile = (cls, v, label) => `<div class="rep-tile ${cls} ${v ? "" : "zero"}"><b>${v}</b><span>${label}</span></div>`;
+  const tiles = `<div class="rep-tiles">${tile("mal", t.malicious, "Malicious")}${tile("sus", t.suspicious, "Suspicious")}${tile("ok", t.clean, "Clean")}${tile("", t.info, "Info only")}${tile("", t.nodata, "No data")}${tile("", t.nokey, "Needs key")}${tile("err", t.failed, "Failed")}</div>`;
+
+  // one row per source, worst verdict first
+  const order = (r) => r.status === "ok" ? 10 + (VRANK[r.verdict] || 0) : r.status === "notfound" ? 3 : r.status === "skipped" ? 1 : 2;
+  const rows = Object.entries(res).sort((a, c) => order(c[1]) - order(a[1]) || modLabel(a[0]).localeCompare(modLabel(c[0])));
+  const stCls = { ok: "ok", notfound: "none", skipped: "key", error: "err", ratelimited: "warn" };
+  const table = `<div class="rep-sec"><h3>Source verdicts <em>${rows.length + busy.size}</em></h3>
+    <div class="tbl-wrap rep-tbl"><table><thead><tr><th>Source</th><th>Result</th><th>Score</th><th>Detail</th><th></th></tr></thead><tbody>
+    ${[...busy.keys()].map((m) => `<tr class="running"><td>${esc(modLabel(m))}</td><td><span class="spinner"></span></td><td></td><td class="dim">running…</td><td></td></tr>`).join("")}
+    ${rows.map(([m, r]) => {
+      const lab = r.status === "ok" ? (r.verdict && r.verdict !== "info" ? vbadge(r.verdict) : '<span class="vbadge">info</span>') : `<span class="src-st ${stCls[r.status] || "err"}"><i class="src-dot"></i>${esc((SRC_STATUS[r.status] || SRC_STATUS.error).label)}</span>`;
+      return `<tr ${r.status === "ok" ? `data-jump="${m}" class="jump"` : ""}><td>${esc(modLabel(m))}</td><td>${lab}</td><td>${r.score != null ? esc(r.score) : ""}</td><td class="dim" title="${esc(detailText(r))}">${esc(detailText(r))}</td>
+        <td><button class="icon-btn src-retry" data-rerun="${m}" title="Run again">${ICON.redo}</button></td></tr>`;
+    }).join("")}
+    </tbody></table></div>${!rows.length && !busy.size ? `<div class="empty-note">${piv ? `Not scanned yet. <button class="btn xs" data-scan="${esc(n.id)}">Scan it</button>` : "Informational indicator — nothing to look up. Use the manual lookups instead."}</div>` : ""}</div>`;
+
+  const findings = `<div class="rep-sec"><h3>Findings <em>${b.good.length}</em></h3>${runningHTML(busy)}
+    ${b.good.map(([m, r]) => cardHTML(m, r)).join("") || (done && !busy.size ? '<div class="empty-note">No source returned data for this IOC.</div>' : "")}
+    ${otherSourcesHTML(b)}</div>`;
+
+  return `<div class="rep">${iocBar}${head}${tiles}${table}<div class="rep-cols"><div>${findings}</div><div>${relatedHTML(n)}${manualHTML(n)}</div></div></div>`;
+}
+// indicators the sources linked to this IOC - the way into pivoting
+function relatedHTML(n) {
+  const kids = new Map();
+  for (const e of S.edges.values()) {
+    const oid = e.source === n.id ? e.target : e.target === n.id ? e.source : null;
+    const o = oid && S.nodes.get(oid);
+    if (o && !kids.has(o.id)) kids.set(o.id, { o, rel: e.rel });
   }
-  return html;
+  const list = [...kids.values()];
+  const pivotable = (o) => S.meta.types[o.type]?.pivotable;
+  const unscanned = list.filter(({ o }) => pivotable(o) && !S.results.has(o.id) && !S.busy.get(o.id)?.size);
+  const groups = new Map();
+  for (const k of list) { if (!groups.has(k.o.type)) groups.set(k.o.type, []); groups.get(k.o.type).push(k); }
+  const typeOrder = Object.keys(CFG.glyph);
+  const body = [...groups.entries()].sort((a, c) => typeOrder.indexOf(a[0]) - typeOrder.indexOf(c[0])).map(([type, items]) => {
+    items.sort((a, c) => ((VRANK[c.o.verdict] || 0) - (VRANK[a.o.verdict] || 0)) || a.o.value.localeCompare(c.o.value));
+    const shown = items.slice(0, 40);
+    return `<div class="rel-group"><div class="rel-h"><i style="background:${tc(type)}"></i>${esc(CFG.plural[type] || typeLabel(type))}<em>${items.length}</em></div>` +
+      shown.map(({ o, rel }) => {
+        const busy = S.busy.get(o.id)?.size, scanned = S.results.has(o.id);
+        const act = !pivotable(o) ? "" : busy ? '<span class="spinner"></span>' : scanned ? (o.verdict ? vbadge(o.verdict) : '<span class="rel-tag">scanned</span>')
+          : `<button class="btn xs" data-scan="${esc(o.id)}" title="Look this indicator up with every enabled source">Scan</button>`;
+        return `<div class="rel rep-rel" data-goto="${esc(o.id)}" title="${esc(rel.replace(/_/g, " "))}"><span class="dir" style="color:${o.verdict ? CFG.verdictColors[o.verdict] || "var(--dim)" : "var(--dim)"}">●</span>
+          <span class="val" ${o.verdict ? `style="color:${CFG.verdictColors[o.verdict] || "inherit"}"` : ""}>${esc(o.label && o.type === "account" ? o.label : o.value)}</span>${act}</div>`;
+      }).join("") + (items.length > shown.length ? `<div class="msg" style="padding:5px 12px">+${items.length - shown.length} more in the graph</div>` : "") + "</div>";
+  }).join("");
+  return `<div class="rep-sec"><h3>Related indicators <em>${list.length}</em></h3>
+    ${list.length ? `<div class="rep-pivot">${unscanned.length ? `<button class="btn sm" data-scanall="${esc(n.id)}" title="Scan every related indicator listed here">${ICON.pivot}Pivot: scan all ${unscanned.length}</button>` : ""}<button class="btn sm ghost" data-view="graph">${ICON.select}View graph</button></div>${body}`
+      : `<div class="msg">${Object.keys(S.results.get(n.id) || {}).length ? "No related indicators were found." : "Related indicators appear here as sources respond."}</div>`}</div>`;
+}
+function manualHTML(n) {
+  const links = lookupLinks().filter((l) => l.types.includes(n.type));
+  if (!links.length) return "";
+  return `<div class="rep-sec"><h3>Manual lookups <em>${links.length}</em></h3><div class="lookup-grid">${links.map((l) => `<a href="${esc(fillTpl(l.url, n.value))}" target="_blank" rel="noopener noreferrer">${esc(l.name)}${ICON.link}</a>`).join("")}</div></div>`;
+}
+function setView(v) {
+  if (v !== "graph") v = "report";
+  S.view = v;
+  $("#main").className = "view-" + v;
+  $$("#viewSeg [data-view]").forEach((b) => b.classList.toggle("on", b.dataset.view === v));
+  closeMenus();
+  if (v === "graph" && S.cy) {
+    S.cy.resize();
+    applyFilters();
+    if (S.needLayout) { S.needLayout = false; runLayout({ fit: true, randomize: S.firstLayout }); S.firstLayout = false; }
+    else if (S.cy.nodes().nonempty()) S.cy.fit(S.cy.elements(":visible"), 50);
+  }
+  renderDetails();
+}
+// lay the graph out without showing it (exports from the report view)
+function ensureLaidOut() {
+  if (!S.needLayout || !S.cy) return;
+  S.needLayout = false; S.firstLayout = false;
+  runLayout({ offscreen: true, randomize: true });
 }
 function relationsHTML(n, edges) {
   if (!edges.length) return '<div class="msg">No links.</div>';
@@ -653,7 +836,7 @@ function overviewHTML() {
     const enabled = S.meta ? S.meta.modules.filter((m) => (S.settings.modules?.[m.name]?.enabled ?? m.enabled)).length : 0;
     return `<div class="d-body overview"><h3>Ready</h3>
       <dl class="kv"><dt>Modules enabled</dt><dd>${enabled} / ${S.meta?.modules.length || 0}</dd><dt>API keys configured</dt><dd>${keys} / ${S.meta?.api_keys.length || 0}</dd>
-      <dt>Auto-pivot depth</dt><dd>${$("#depthSel").value}</dd><dt>Node limit</dt><dd>${S.settings?.pivot?.max_nodes}</dd></dl>
+      <dt>Pivoting</dt><dd>${$("#autoPivot").checked ? `on · depth ${$("#depthSel").value}` : "off"}</dd><dt>Node limit</dt><dd>${S.settings?.pivot?.max_nodes}</dd></dl>
       <p class="msg" style="margin-top:14px">Many sources work without keys (DNS, RDAP, crt.sh, Shodan InternetDB, OTX, ip-api, SANS ISC, Mnemonic PDNS, Gravatar, GitHub, username enumeration…). Add keys for VirusTotal, AbuseIPDB, abuse.ch and others to unlock threat-intel verdicts.</p>
       <p style="margin-top:12px"><button class="btn sm" data-open-settings="keys">Configure API keys</button> <button class="btn sm ghost" data-open-settings="modules">Modules</button></p>
       <h3>Tips</h3><div class="msg" style="line-height:1.8">• Double-click a node to pivot on it<br>• Right-click for module menu, lookups &amp; hiding<br>• Paste several indicators separated by commas or new lines<br>• <b>/</b> focus search · <b>F</b> fit · <b>L</b> layout · <b>P</b> pivot selected · <b>Del</b> hide selected · <b>Esc</b> deselect</div></div>`;
@@ -687,6 +870,14 @@ async function pivot(id, opts = {}) {
     const r = await api(`/api/scan/${S.scanId}/expand`, { body: { node_id: id, ...opts } });
     toast(r.scheduled ? `${r.scheduled} lookup${r.scheduled > 1 ? "s" : ""} scheduled for ${n.value}` : "Already looked up — use ↻ on a source, or Run module, to refresh", r.scheduled ? "info" : "warn");
   } catch (e) { toast(e.message, "error"); }
+}
+async function scanMany(ids) {
+  if (!S.scanId || !ids.length) return;
+  let n = 0;
+  for (const id of ids) {
+    try { n += (await api(`/api/scan/${S.scanId}/expand`, { body: { node_id: id } })).scheduled || 0; } catch (e) { toast(e.message, "error"); return; }
+  }
+  toast(`${n} lookup${n === 1 ? "" : "s"} scheduled across ${ids.length} indicator${ids.length === 1 ? "" : "s"}`);
 }
 async function removeNodes(ids) {
   try { await api(`/api/scan/${S.scanId}/remove`, { body: { node_ids: ids } }); } catch (e) { toast(e.message, "error"); }
@@ -863,12 +1054,14 @@ async function doExport(kind) {
   const nodes = [...S.nodes.values()];
   if (kind === "json") return download(base + ".json", JSON.stringify(await api(`/api/scan/${S.scanId}`), null, 2), "application/json");
   if (kind === "csv") {
-    const rows = [["type", "value", "label", "verdict", "score", "depth", "seed", "noise", "tags", "discovered_by", "sources_hit"]];
-    for (const n of nodes) {
-      const hits = Object.entries(S.results.get(n.id) || {}).filter(([, r]) => r.status === "ok").map(([m]) => modLabel(m));
-      rows.push([n.type, n.value, n.label !== n.value ? n.label : "", n.verdict || "", n.score ?? "", n.depth, n.root, n.noise, n.tags.join("|"), n.source ? modLabel(n.source) : "", hits.join("|")]);
+    // one row per scanned indicator and source
+    const rows = [["indicator_type", "indicator", "submitted", "overall_verdict", "source", "status", "verdict", "score", "detail"]];
+    for (const n of reportNodes()) {
+      for (const [m, r] of Object.entries(S.results.get(n.id) || {}).sort((a, b) => modLabel(a[0]).localeCompare(modLabel(b[0])))) {
+        rows.push([n.type, n.value, n.root, n.verdict || "", modLabel(m), r.status, r.verdict || "", r.score ?? "", detailText(r)]);
+      }
     }
-    return download(base + ".csv", rows.map((r) => r.map(csvCell).join(",")).join("\n"), "text/csv");
+    return download(base + "-verdicts.csv", rows.map((r) => r.map(csvCell).join(",")).join("\n"), "text/csv");
   }
   if (kind === "iocs") {
     const order = ["ipv4", "ipv6", "domain", "url", "email", "hash", "asn", "cve", "username", "malware"];
@@ -880,34 +1073,49 @@ async function doExport(kind) {
     }
     return download(base + "-iocs.txt", out, "text/plain");
   }
-  if (kind === "png") return download(base + ".png", S.cy.png({ full: true, scale: 2, bg: "#050506", output: "blob" }));
+  if (kind === "png") { ensureLaidOut(); return download(base + ".png", S.cy.png({ full: true, scale: 2, bg: "#050506", output: "blob" })); }
   if (kind === "report") return download(base + "-report.html", buildReport(), "text/html");
 }
+// indicators that were actually looked up: submitted IOCs first, then pivots
+function reportNodes() {
+  return [...S.nodes.values()].filter((n) => n.root || S.results.has(n.id))
+    .sort((a, b) => (b.root - a.root) || ((VRANK[b.verdict] || 0) - (VRANK[a.verdict] || 0)) || a.value.localeCompare(b.value));
+}
 function buildReport() {
-  const nodes = [...S.nodes.values()].sort((a, b) => (b.root - a.root) || ((VRANK[b.verdict] || 0) - (VRANK[a.verdict] || 0)) || a.type.localeCompare(b.type));
-  const img = S.cy.png({ full: true, scale: 1.5, bg: "#050506", maxWidth: 2400 });
-  const vc = (v) => (v ? CFG.verdictColors[v] : "#6b6b75");
-  const cnt = (v) => nodes.filter((n) => n.verdict === v).length;
-  const flagged = nodes.filter((n) => VRANK[n.verdict] >= 2);
-  const detail = (n) => {
-    const res = Object.entries(S.results.get(n.id) || {}).filter(([, r]) => r.status === "ok");
-    if (!res.length) return "";
-    return `<details><summary><b style="color:${vc(n.verdict)}">${esc(n.value)}</b> <span>${esc(typeLabel(n.type))}</span></summary>` + res.map(([m, r]) =>
-      `<div class="src"><h4>${esc(modLabel(m))}${r.verdict ? ` — <span style="color:${vc(r.verdict)}">${r.verdict}</span>` : ""}</h4><dl>${r.summary.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl></div>`).join("") + "</details>";
+  const scanned = reportNodes(), scannedIds = new Set(scanned.map((n) => n.id));
+  const related = [...S.nodes.values()].filter((n) => !scannedIds.has(n.id))
+    .sort((a, b) => ((VRANK[b.verdict] || 0) - (VRANK[a.verdict] || 0)) || a.type.localeCompare(b.type) || a.value.localeCompare(b.value));
+  const vc = (v) => (v && CFG.verdictColors[v]) || "#6b6b75";
+  const section = (n) => {
+    const res = S.results.get(n.id) || {}, t = tally(res);
+    const rated = t.malicious + t.suspicious + t.clean;
+    const rows = Object.entries(res).sort((a, b) => (VRANK[b[1].verdict] || 0) - (VRANK[a[1].verdict] || 0) || modLabel(a[0]).localeCompare(modLabel(b[0])));
+    const good = rows.filter(([, r]) => r.status === "ok" && r.summary.length);
+    return `<section class="ioc"><div class="ioc-h"><div><span class="ty">${esc(typeLabel(n.type))}${n.root ? "" : " · related"}</span><h3>${esc(n.value)}</h3></div>
+      <div class="vd" style="color:${vc(n.verdict)};border-color:${vc(n.verdict)}">${esc(VLABEL[n.verdict] || "No verdict")}<small>${rated ? `${t.malicious + t.suspicious} / ${rated} sources flag it` : "no source gave a verdict"}</small></div></div>
+      ${n.tags.length ? `<p class="meta">Tags: ${esc(n.tags.join(", "))}</p>` : ""}
+      <table><tr><th>Source</th><th>Result</th><th>Score</th><th>Detail</th></tr>${rows.map(([m, r]) => `<tr><td>${esc(modLabel(m))}</td><td class="v" style="color:${r.status === "ok" ? vc(r.verdict) : "#80808a"}">${esc(r.status === "ok" ? r.verdict || "info" : (SRC_STATUS[r.status] || SRC_STATUS.error).label)}</td><td>${esc(r.score ?? "")}</td><td>${esc(detailText(r))}</td></tr>`).join("")}</table>
+      ${good.length ? `<details><summary>Full findings from ${good.length} source${good.length === 1 ? "" : "s"}</summary>${good.map(([m, r]) =>
+        `<div class="src"><h4>${esc(modLabel(m))}${r.verdict ? ` — <span style="color:${vc(r.verdict)}">${r.verdict}</span>` : ""}</h4><dl>${r.summary.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl></div>`).join("")}</details>` : ""}</section>`;
   };
-  return `<!doctype html><html><head><meta charset="utf-8"><title>ARACHNE report — ${esc(S.title)}</title><style>
+  let img = "";
+  if (related.length) { ensureLaidOut(); img = S.cy.png({ full: true, scale: 1.5, bg: "#050506", maxWidth: 2400 }); }
+  const cnt = (v) => scanned.filter((n) => n.verdict === v).length;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>ARACHNE scan report — ${esc(S.title)}</title><style>
   body{background:#050506;color:#e4e4e7;font:13px/1.5 Inter,Segoe UI,sans-serif;margin:0;padding:32px;max-width:1200px;margin:auto}
   h1{font:700 22px Consolas,monospace;letter-spacing:.06em}h2{font:600 12px Consolas,monospace;letter-spacing:.14em;text-transform:uppercase;color:#80808a;margin-top:34px;border-bottom:1px solid #1f1f25;padding-bottom:6px}
-  .meta{color:#80808a}.tiles{display:flex;gap:10px;margin:18px 0}.tile{background:#0e0e11;border:1px solid #1f1f25;border-radius:8px;padding:10px 16px}.tile b{display:block;font:600 22px Consolas,monospace}
+  .meta{color:#80808a}.tiles{display:flex;gap:10px;margin:18px 0;flex-wrap:wrap}.tile{background:#0e0e11;border:1px solid #1f1f25;border-radius:8px;padding:10px 16px}.tile b{display:block;font:600 22px Consolas,monospace}
+  .ioc{background:#0a0a0c;border:1px solid #1f1f25;border-radius:10px;padding:16px 18px;margin:12px 0}.ioc-h{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:10px}
+  .ioc-h h3{margin:2px 0 0;font:700 16px Consolas,monospace;word-break:break-all}.ty{font:600 10px Consolas,monospace;letter-spacing:.12em;text-transform:uppercase;color:#80808a}
+  .vd{font:700 14px Consolas,monospace;text-transform:uppercase;letter-spacing:.08em;border:1px solid;border-radius:8px;padding:6px 12px;text-align:right;white-space:nowrap}.vd small{display:block;font:400 11px Inter,sans-serif;text-transform:none;letter-spacing:0;color:#80808a}
   img{max-width:100%;border:1px solid #1f1f25;border-radius:10px}table{border-collapse:collapse;width:100%;font:12px Consolas,monospace}th,td{text-align:left;padding:5px 8px;border-bottom:1px solid #1f1f25;vertical-align:top}th{color:#80808a}
-  td.v{font-weight:700}details{background:#0e0e11;border:1px solid #1f1f25;border-radius:8px;padding:8px 12px;margin:6px 0}summary{cursor:pointer;font-family:Consolas,monospace}summary span{color:#80808a;font-size:11px}
+  td.v{font-weight:700;text-transform:uppercase;font-size:11px}details{background:#0e0e11;border:1px solid #1f1f25;border-radius:8px;padding:8px 12px;margin:10px 0 0}summary{cursor:pointer;font-family:Consolas,monospace;color:#b4b4bb}
   .src h4{margin:10px 0 4px;font-size:12px}dl{display:grid;grid-template-columns:220px 1fr;gap:2px 10px;margin:0;font-size:12px}dt{color:#80808a}dd{margin:0;font-family:Consolas,monospace;word-break:break-word}</style></head><body>
-  <h1>ARACHNE · OSINT REPORT</h1><div class="meta">Seeds: ${esc(nodes.filter((n) => n.root).map((n) => n.value).join(", "))}<br>Generated ${esc(new Date().toLocaleString())}</div>
-  <div class="tiles"><div class="tile"><b>${nodes.length}</b>indicators</div><div class="tile"><b>${S.edges.size}</b>links</div><div class="tile"><b style="color:#ef4444">${cnt("malicious")}</b>malicious</div><div class="tile"><b style="color:#f59e0b">${cnt("suspicious")}</b>suspicious</div></div>
-  <h2>Graph</h2><img src="${img}">
-  <h2>Flagged indicators</h2>${flagged.length ? `<table><tr><th>Verdict</th><th>Type</th><th>Value</th><th>Tags</th></tr>${flagged.map((n) => `<tr><td class="v" style="color:${vc(n.verdict)}">${n.verdict}${n.score != null ? " " + n.score : ""}</td><td>${esc(typeLabel(n.type))}</td><td>${esc(n.value)}</td><td>${esc(n.tags.join(", "))}</td></tr>`).join("")}</table>` : '<p class="meta">None.</p>'}
-  <h2>Findings by indicator</h2>${nodes.map(detail).join("")}
-  <h2>All indicators</h2><table><tr><th>Type</th><th>Value</th><th>Verdict</th><th>Depth</th><th>Discovered by</th></tr>${nodes.map((n) => `<tr><td>${esc(typeLabel(n.type))}</td><td>${esc(n.value)}</td><td style="color:${vc(n.verdict)}">${n.verdict || "—"}</td><td>${n.root ? "seed" : n.depth}</td><td>${esc(n.source ? modLabel(n.source) : "")}</td></tr>`).join("")}</table>
+  <h1>ARACHNE · IOC SCAN REPORT</h1><div class="meta">IOCs: ${esc(scanned.filter((n) => n.root).map((n) => n.value).join(", "))}<br>Generated ${esc(new Date().toLocaleString())}</div>
+  <div class="tiles"><div class="tile"><b>${scanned.length}</b>IOCs scanned</div><div class="tile"><b style="color:#ef4444">${cnt("malicious")}</b>malicious</div><div class="tile"><b style="color:#f59e0b">${cnt("suspicious")}</b>suspicious</div><div class="tile"><b style="color:#22c55e">${cnt("clean")}</b>clean</div><div class="tile"><b>${related.length}</b>related indicators</div></div>
+  <h2>Results by IOC</h2>${scanned.map(section).join("")}
+  ${related.length ? `<h2>Related indicators</h2><table><tr><th>Type</th><th>Value</th><th>Verdict</th><th>Found by</th></tr>${related.map((n) => `<tr><td>${esc(typeLabel(n.type))}</td><td>${esc(n.value)}</td><td style="color:${vc(n.verdict)}">${n.verdict || "—"}</td><td>${esc(n.source ? modLabel(n.source) : "")}</td></tr>`).join("")}</table>
+  <h2>Pivot graph</h2><img src="${img}">` : ""}
   </body></html>`;
 }
 
@@ -937,8 +1145,32 @@ function bind() {
   $("#exportMenu").onclick = (e) => { const b = e.target.closest("[data-export]"); if (b) { closeMenus(); doExport(b.dataset.export); } };
   $("#logToggle").onclick = () => $("#logbar").classList.toggle("open");
   $("#layoutSel").onchange = (e) => { saveUI({ layout: e.target.value }); runLayout({ fit: true, randomize: true }); };
-  $("#examples").innerHTML = CFG.examples.map(([k, v]) => `<button data-ex="${esc(v)}"><b>${k}</b>${esc(v)}</button>`).join("");
-  $("#examples").onclick = (e) => { const b = e.target.closest("[data-ex]"); if (b) { $("#seedInput").value = b.dataset.ex; updateDetect(); $("#seedInput").focus(); } };
+  $("#autoPivot").onchange = () => { $("#depthWrap").hidden = !$("#autoPivot").checked; if (!S.scanId) renderDetails(); };
+  $("#viewSeg").onclick = (e) => { const b = e.target.closest("[data-view]"); if (b) setView(b.dataset.view); };
+  $("#report").onclick = (e) => {
+    const t = e.target;
+    const ex = t.closest("[data-ex]"); if (ex) { $("#seedInput").value = ex.dataset.ex; updateDetect(); $("#seedInput").focus(); return; }
+    const os = t.closest("[data-open-settings]"); if (os) { e.preventDefault(); return openSettings(os.dataset.openSettings); }
+    const vw = t.closest("[data-view]"); if (vw) return setView(vw.dataset.view);
+    const cp = t.closest("[data-copy]"); if (cp) return copy(cp.dataset.copy);
+    const rr = t.closest("[data-rerun]"); if (rr) { e.stopPropagation(); return pivot(subjectId(), { modules: [rr.dataset.rerun], force: true }); }
+    const rs = t.closest("[data-rescan]"); if (rs) return pivot(rs.dataset.rescan, { force: true });
+    const sc = t.closest("[data-scan]"); if (sc) { e.stopPropagation(); return scanMany([sc.dataset.scan]); }
+    const sa = t.closest("[data-scanall]");
+    if (sa) {
+      const id = sa.dataset.scanall, ids = new Set();
+      for (const ed of S.edges.values()) { const o = ed.source === id ? ed.target : ed.target === id ? ed.source : null; if (o) ids.add(o); }
+      return scanMany([...ids].filter((x) => { const o = S.nodes.get(x); return o && S.meta.types[o.type]?.pivotable && !S.results.has(x) && !S.busy.get(x)?.size; }));
+    }
+    const jp = t.closest("[data-jump]");
+    if (jp) { const c = $(`#card-${CSS.escape(jp.dataset.jump)}`); if (c) { S.collapsed.delete(jp.dataset.jump); c.classList.remove("collapsed"); c.scrollIntoView({ behavior: "smooth", block: "start" }); c.classList.add("flash"); setTimeout(() => c.classList.remove("flash"), 900); } return; }
+    const tg = t.closest("[data-toggle]"); if (tg) { const m = tg.dataset.toggle; S.collapsed.has(m) ? S.collapsed.delete(m) : S.collapsed.add(m); tg.parentElement.classList.toggle("collapsed"); return; }
+    const go = t.closest("[data-goto]"); if (go) return select(go.dataset.goto);
+  };
+  $("#report").onchange = (e) => { const s = e.target.closest("[data-runmod]"); if (s && s.value) { pivot(s.dataset.runmod, { modules: [s.value], force: true }); s.value = ""; } };
+  $("#report").addEventListener("toggle", (e) => {
+    const g = e.target.closest?.("[data-group]"); if (g) (S.srcOpen ||= {})[g.dataset.group] = g.open;
+  }, true);
   $(".graph-tools").onclick = (e) => {
     const t = e.target.closest("[data-tool]")?.dataset.tool; if (!t) return;
     if (t === "fit") S.cy.animate({ fit: { eles: S.cy.elements(":visible"), padding: 50 }, duration: 350 });
@@ -1008,8 +1240,9 @@ function bind() {
     if (e.key === "Escape") { closeMenus(); const open = $(".modal.open"); if (open) { open.classList.remove("open"); open.onclose?.(); } else if (!typing) select(null); return; }
     if (typing || $(".modal.open")) return;
     if (e.key === "/") { e.preventDefault(); $("#seedInput").focus(); }
-    else if (e.key === "f") S.cy.animate({ fit: { eles: S.cy.elements(":visible"), padding: 50 }, duration: 350 });
-    else if (e.key === "l") runLayout({ fit: true, randomize: true });
+    else if (e.key === "v") setView(S.view === "graph" ? "report" : "graph");
+    else if (e.key === "f" && S.view === "graph") S.cy.animate({ fit: { eles: S.cy.elements(":visible"), padding: 50 }, duration: 350 });
+    else if (e.key === "l" && S.view === "graph") runLayout({ fit: true, randomize: true });
     else if (e.key === "p" && S.selected) pivot(S.selected);
     else if ((e.key === "Delete" || e.key === "h") && S.selected) hideNode(S.selected);
   });
@@ -1025,8 +1258,9 @@ async function init() {
   }
   S.modules = Object.fromEntries(S.meta.modules.map((m) => [m.name, m]));
   $("#typeSel").innerHTML = '<option value="auto">AUTO</option>' + Object.entries(S.meta.types).filter(([, t]) => t.pivotable).map(([k, t]) => `<option value="${k}">${esc(t.label)}</option>`).join("");
-  $("#depthSel").value = String(S.settings.pivot?.depth ?? 1);
-  $("#autoPivot").checked = S.settings.pivot?.auto !== false;
+  $("#depthSel").value = String(Math.min(4, Math.max(1, S.settings.pivot?.depth ?? 1)));
+  $("#autoPivot").checked = !!S.settings.pivot?.auto;
+  $("#depthWrap").hidden = !$("#autoPivot").checked;
   if (typeof cytoscape === "undefined") {
     toast("Graph library failed to load (no internet?). Check your connection and reload.", "error", 15000);
     return;
@@ -1034,9 +1268,9 @@ async function init() {
   initGraph();
   applyUI();
   bind();
-  renderDetails();
-  // deep links: #scan=<id>&node=<node id>&tab=<tab>&settings=<tab>
+  // deep links: #scan=<id>&view=<report|graph>&node=<node id>&tab=<tab>&settings=<tab>
   const hp = new URLSearchParams(location.hash.slice(1));
+  setView(hp.get("view") || "report");
   if (/^[a-f0-9]+$/.test(hp.get("scan") || "")) await loadScan(hp.get("scan"));
   if (hp.get("groups") === "collapsed") { S.cy.nodes("[?group]").forEach((g) => S.collapsedGroups.add(g.id())); applyFilters(); runLayout({ fit: true, randomize: true }); }
   if (hp.get("node") && S.nodes.has(hp.get("node"))) { S.tab = hp.get("tab") || S.tab; select(hp.get("node"), false); }

@@ -61,7 +61,7 @@ DEFAULTS = {
     "api_keys": {},
     "modules": {},   # name -> {"enabled": bool, "pivot": bool, "rate": int, <option>: value}
     "pivot": {
-        "auto": True,
+        "auto": False,   # scanner first: only the submitted IOCs are looked up unless pivoting is switched on
         "depth": 1,
         "max_nodes": 250,
         "max_children": 15,

@@ -4,7 +4,7 @@
 
 # ARACHNE
 
-A self-hosted OSINT tool that pivots from one indicator to everything connected to it.
+A self-hosted IOC scanner: one indicator in, one report from every threat-intel and OSINT source you've configured. When you want to dig further, it pivots to everything connected to it.
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-0d0d10?style=for-the-badge&logo=python&logoColor=e4e4e7&labelColor=050506)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-0d0d10?style=for-the-badge&labelColor=050506&color=5b9cf5)](LICENSE)
@@ -15,9 +15,9 @@ A self-hosted OSINT tool that pivots from one indicator to everything connected 
 
 ## About
 
-Give it an IP, domain, URL, email address, username, file hash, ASN or CVE. ARACHNE looks it up across a set of OSINT and threat-intel sources and plots the results as a graph.
+Give it an IP, domain, URL, email address, username, file hash, ASN or CVE. ARACHNE looks it up across every enabled OSINT and threat-intel source and builds a single scan report: an overall verdict, how many sources flag it, each source's verdict and score, and the full details behind them.
 
-Anything new it finds (hostnames, IPs, emails, hashes, accounts) gets looked up too, out to whatever depth you set. I built it to stop copy-pasting the same IOC between VirusTotal, AbuseIPDB, Shodan and a dozen other tabs.
+The report also lists the related indicators the sources turned up (hostnames, IPs, emails, hashes, accounts). Scan any of them with one click, or switch on **Pivot** before scanning to look them up automatically, out to whatever depth you set. The **Graph** view maps it all as a web. I built it to stop copy-pasting the same IOC between VirusTotal, AbuseIPDB, Shodan and a dozen other tabs.
 
 It runs locally and only needs Python. There's nothing to install.
 
@@ -25,7 +25,7 @@ It runs locally and only needs Python. There's nothing to install.
 
 ```bash
 git clone https://github.com/luke-mckeever/ARACHNE.git
-cd arachne-osint
+cd ARACHNE
 python server.py
 ```
 
@@ -44,11 +44,12 @@ Add your API keys under **Settings → API Keys**. A lot of sources work without
 
 ## Features
 
-- **Auto-pivoting** with configurable depth and node limits. A noise filter stops it crawling through CDNs and big providers.
-- **Live graph:** results stream in as lookups finish, and malicious and suspicious nodes are highlighted.
-- **Neighbour grouping:** large sets of one type (e.g. 40 domains on one IP) collapse into a single box.
+- **IOC scan report:** overall verdict, a detection ring (how many sources flag the IOC), a verdict table with one row per source, and detailed findings. Results stream in live as each lookup finishes.
+- **Multiple IOCs:** paste several, comma- or newline-separated, and switch between their reports.
+- **Pivoting when you want it:** scan related indicators one at a time or all at once from the report, or turn on auto-pivot with configurable depth and node limits. A noise filter stops it crawling through CDNs and big providers.
+- **Graph view:** everything found, mapped as a web, with malicious and suspicious nodes highlighted. Large sets of one type (e.g. 40 domains on one IP) collapse into a single box.
 - **Settings for nearly everything:** turn modules on or off, set rate limits, add custom username sites and lookup links, change colours, set a proxy, and more.
-- **Exports:** HTML report, JSON, CSV, a plain IOC list or a PNG of the graph.
+- **Exports:** HTML scan report, per-source verdicts CSV, JSON, a plain IOC list or a PNG of the graph.
 - **Saved scans:** every scan is saved, so you can reopen it later and keep pivoting.
 
 ## Sources
@@ -61,10 +62,11 @@ Every module has a **Test** button in Settings, so you can check a key works bef
 
 ## Usage tips
 
-- Double-click a node to pivot on it. Right-click for more options, such as running a single module or opening the value in VirusTotal or Shodan.
-- Click a group box to collapse or expand it.
-- Use **Clear all** in the toolbar to start fresh. The old scan stays in History.
-- Depth 1 is usually enough. Depth 2+ on a busy IP will hit the node limit quickly.
+- Click a row in the source verdict table to jump to that source's findings, or ↻ to re-run it.
+- Click any indicator in the left list to open its report. Press **V** to switch between the report and the graph.
+- In the graph, double-click a node to pivot on it. Right-click for more options, such as running a single module or opening the value in VirusTotal or Shodan. Click a group box to collapse or expand it.
+- Use **Clear all** in the graph toolbar to start fresh. The old scan stays in History.
+- With auto-pivot, depth 1 is usually enough. Depth 2+ on a busy IP will hit the node limit quickly.
 - The free VirusTotal tier is 4 requests/min, so VT results come in slowly. That's expected.
 
 ## Adding a module

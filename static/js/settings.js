@@ -29,8 +29,8 @@ async function patchSettings(patch, rerender = false) {
     S.settings.ui = S.settings.ui || ui;
     flashSaved();
     if (patch.pivot) {
-      if ("depth" in patch.pivot) $("#depthSel").value = String(patch.pivot.depth);
-      if ("auto" in patch.pivot) $("#autoPivot").checked = !!patch.pivot.auto;
+      if ("depth" in patch.pivot) $("#depthSel").value = String(Math.min(4, Math.max(1, patch.pivot.depth)));
+      if ("auto" in patch.pivot) { $("#autoPivot").checked = !!patch.pivot.auto; $("#depthWrap").hidden = !patch.pivot.auto; }
     }
     if (rerender) renderSettingsTab();
     if (!S.scanId) renderDetails();
@@ -101,9 +101,9 @@ function tabModules() {
 function tabPivot() {
   const p = S.settings.pivot;
   const types = Object.entries(S.meta.types).filter(([, t]) => t.pivotable);
-  return `<h3>Pivoting</h3><p class="lead">Controls how far ARACHNE crawls from each seed. Every newly discovered indicator at depth ≤ the pivot depth is looked up automatically with the modules marked “On pivots”.</p>
-    ${field("Auto-pivot", "Automatically look up discovered indicators", sw("pivot.auto", p.auto))}
-    ${field("Pivot depth", "Hops from the seed that are auto-expanded. 0 = seed only. Each level can multiply node count.", num("pivot.depth", p.depth, 0, 8))}
+  return `<h3>Pivoting</h3><p class="lead">By default a scan only looks up the IOCs you submit, and lists the related indicators each source finds so you can scan them from the report. With auto-pivot on, every related indicator at depth ≤ the pivot depth is looked up automatically with the modules marked “On pivots”.</p>
+    ${field("Auto-pivot by default", "Start scans with the Pivot switch on", sw("pivot.auto", p.auto))}
+    ${field("Pivot depth", "Hops from the scanned IOC that are auto-expanded. Each level can multiply node count.", num("pivot.depth", p.depth, 1, 8))}
     ${field("Max nodes per scan", "Hard cap on graph size", num("pivot.max_nodes", p.max_nodes, 10, 20000))}
     ${field("Max children per lookup", "Max related indicators a single module may add (subdomains, resolutions…)", num("pivot.max_children", p.max_children, 1, 500))}
     ${field("Auto-pivot types", "Which indicator types are expanded automatically", `<div class="type-toggles" data-k="pivot.types">${types.map(([k, t]) => `<span data-t="${k}" class="${p.types.includes(k) ? "on" : ""}" style="color:${tc(k)};border-color:${hexA(tc(k), 0.5)}">${esc(t.label)}</span>`).join("")}</div>`)}

@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ARACHNE OSINT</title>
+<title>ARACHNE IOC Scanner</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23000'/%3E%3Cg stroke='%23d4d4d8' stroke-width='1.4' fill='none'%3E%3Ccircle cx='16' cy='16' r='4'/%3E%3Ccircle cx='16' cy='16' r='9'/%3E%3Cpath d='M16 3v26M3 16h26M7 7l18 18M25 7L7 25'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/app.css?v=1.2.9">
+<link rel="stylesheet" href="/css/app.css?v=2.0.0">
 <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/layout-base@2.0.1/layout-base.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/cose-base@2.2.0/cose-base.js"></script>
@@ -17,43 +17,47 @@
 <body>
 
 <header id="topbar">
-  <div class="brand" title="ARACHNE - pivoting OSINT scanner">
+  <div class="brand" title="ARACHNE - IOC scanner with OSINT pivoting">
     <svg viewBox="0 0 40 40" class="logo"><g fill="none" stroke="currentColor" stroke-width="1.3">
       <circle cx="20" cy="20" r="4"/><circle cx="20" cy="20" r="10" opacity=".7"/><circle cx="20" cy="20" r="17" opacity=".4"/>
       <path d="M20 1v38M1 20h38M6.5 6.5l27 27M33.5 6.5l-27 27" opacity=".55"/></g>
       <circle cx="20" cy="20" r="2" fill="currentColor"/></svg>
-    <div><b>ARACHNE</b><span>OSINT PIVOT ENGINE</span></div>
+    <div><b>ARACHNE</b><span>IOC SCANNER</span></div>
   </div>
 
   <form id="scanForm" class="search" autocomplete="off">
     <select id="typeSel" class="type-sel" title="Indicator type (auto-detected)">
       <option value="auto">AUTO</option>
     </select>
-    <input id="seedInput" spellcheck="false" placeholder="IP · domain · URL · email · username · hash · ASN · CVE  —  comma-separate for multiple seeds">
+    <input id="seedInput" spellcheck="false" placeholder="Paste an IOC: IP · domain · URL · hash · email · username · ASN · CVE  —  comma-separate for several">
     <span id="detectHint" class="detect-hint"></span>
     <div class="search-opts">
-      <label title="How many hops to auto-pivot from the seed">Depth
-        <select id="depthSel"><option>0</option><option selected>1</option><option>2</option><option>3</option><option>4</option></select>
+      <label class="switch" title="Also look up the related indicators each source finds (OSINT pivoting)">
+        <input type="checkbox" id="autoPivot"><i></i><span>Pivot</span>
       </label>
-      <label class="switch" title="Automatically look up indicators discovered by modules">
-        <input type="checkbox" id="autoPivot" checked><i></i><span>Auto-pivot</span>
+      <label id="depthWrap" title="How many hops to pivot from the scanned IOC">Depth
+        <select id="depthSel"><option>1</option><option>2</option><option>3</option><option>4</option></select>
       </label>
     </div>
-    <button type="button" id="addBtn" class="btn ghost icon-btn" title="Add seed(s) to the current graph instead of starting a new scan" disabled>
+    <button type="button" id="addBtn" class="btn ghost icon-btn" title="Add IOC(s) to the current scan instead of starting a new one" disabled>
       <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
     <button id="scanBtn" class="btn primary"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>Scan</button>
     <button type="button" id="stopBtn" class="btn danger" hidden><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>Stop</button>
   </form>
 
   <nav class="top-actions">
+    <div class="seg view-seg" id="viewSeg" title="Switch between the scan report and the pivot graph (V)">
+      <button data-view="report" class="on"><svg viewBox="0 0 24 24"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M9 13h6M9 17h6M9 9h2"/></svg>Report</button>
+      <button data-view="graph"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="4" cy="5" r="2"/><circle cx="20" cy="5" r="2"/><circle cx="12" cy="21" r="2"/><path d="M6 6l4 4M18 6l-4 4M12 15v4"/></svg>Graph</button>
+    </div>
     <button class="icon-btn" id="historyBtn" title="Scan history"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 3"/></svg></button>
     <div class="dropdown">
       <button class="icon-btn" id="exportBtn" title="Export"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v3h16v-3"/></svg></button>
       <div class="menu" id="exportMenu">
-        <button data-export="report">HTML report</button>
-        <button data-export="json">Scan JSON</button>
-        <button data-export="csv">Indicators CSV</button>
+        <button data-export="report">Scan report (HTML)</button>
+        <button data-export="csv">Source verdicts (CSV)</button>
         <button data-export="iocs">IOC list (TXT)</button>
+        <button data-export="json">Scan JSON</button>
         <button data-export="png">Graph PNG</button>
       </div>
     </div>
@@ -62,7 +66,7 @@
 </header>
 <div id="progress"><div></div></div>
 
-<main id="main">
+<main id="main" class="view-report">
   <aside id="left" class="panel">
     <div class="stats">
       <div class="stat"><b id="stNodes">0</b><span>Indicators</span></div>
@@ -83,6 +87,8 @@
     <div id="entityList" class="entity-list"></div>
   </aside>
 
+  <section id="reportWrap"><div id="report"></div></section>
+
   <section id="graphWrap">
     <div id="cy"></div>
     <div id="empty" class="empty">
@@ -92,9 +98,8 @@
         <path d="M100 4v192M4 100h192M32 32l136 136M168 32 32 168" stroke-width=".6" opacity=".45"/></g>
         <circle cx="100" cy="100" r="5" fill="currentColor"/><circle cx="142" cy="100" r="3" fill="currentColor" opacity=".6"/>
         <circle cx="52" cy="52" r="3" fill="currentColor" opacity=".6"/><circle cx="100" cy="168" r="3" fill="currentColor" opacity=".4"/></svg>
-      <h1>Cast a thread.</h1>
-      <p>Enter an indicator above. ARACHNE queries every enabled source, maps what it finds into a web, then pivots on each new strand automatically.</p>
-      <div class="examples" id="examples"></div>
+      <h1>No web yet.</h1>
+      <p>Scan an IOC and its related indicators appear here. Double-click any node to pivot on it, or switch on <b>Pivot</b> before scanning to crawl outward automatically.</p>
       <p class="hint">Right-click nodes for actions · Configure API keys &amp; modules in <a href="#" id="emptySettings">Settings</a></p>
     </div>
     <div class="graph-tools">
@@ -154,8 +159,8 @@
   </div>
 </div>
 
-<script src="/js/config.js?v=1.2.9"></script>
-<script src="/js/app.js?v=1.2.9"></script>
-<script src="/js/settings.js?v=1.2.9"></script>
+<script src="/js/config.js?v=2.0.0"></script>
+<script src="/js/app.js?v=2.0.0"></script>
+<script src="/js/settings.js?v=2.0.0"></script>
 </body>
 </html>
