@@ -609,9 +609,9 @@ function sortResults(res) {
 }
 function cardHTML(m, r) {
   const col = S.collapsed.has(m);
-  const meta = r.elapsed != null ? `${r.elapsed}s` : "";
+  const meta = [r.ts ? (r.cached ? "cache · " : "") + ago(r.ts) : "", r.elapsed != null && !r.cached ? `${r.elapsed}s` : ""].filter(Boolean).join(" · ");
   return `<div class="card ${r.verdict || ""} ${col ? "collapsed" : ""}" data-mod="${m}" id="card-${m}">
-    <div class="card-h" data-toggle="${m}">${ICON.chev}<b title="${esc(modLabel(m))}">${esc(modLabel(m))}</b>${r.verdict ? vbadge(r.verdict, r.score) : ""}<small title="${r.cached ? "Served from cache — ↻ to refresh" : "Lookup time"}">${r.cached ? "● " : ""}${meta}</small>
+    <div class="card-h" data-toggle="${m}">${ICON.chev}<b title="${esc(modLabel(m))}">${esc(modLabel(m))}</b>${r.verdict ? vbadge(r.verdict, r.score) : ""}<small title="${r.ts ? `Looked up ${esc(fmtTime(r.ts))}` : ""}${r.cached ? " · served from cache — ↻ to refresh" : ""}">${meta}</small>
     <button class="icon-btn card-act" data-rerun="${m}" title="Run again (bypass cache)">${ICON.redo}</button></div>
     <div class="card-b">${r.summary.length ? kvHTML(r.summary) : ""}${r.message ? `<div class="msg">${esc(r.message)}</div>` : ""}
     ${r.tags?.length ? `<div class="tags">${r.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>` : ""}
@@ -651,8 +651,8 @@ const VLABEL = { malicious: "Malicious", suspicious: "Suspicious", clean: "Clean
 // the indicator the report is about: the selected one, else the first scanned IOC
 function subjectId() {
   if (S.selected && S.nodes.has(S.selected)) return S.selected;
-  for (const n of S.nodes.values()) if (n.root) return n.id;
-  return null;
+  const seeds = [...S.nodes.values()].filter((n) => n.root);
+  return seeds.length === 1 ? seeds[0].id : null;   // several IOCs: the combined summary
 }
 function tally(res) {
   const t = { malicious: 0, suspicious: 0, clean: 0, info: 0, nodata: 0, nokey: 0, failed: 0 };
@@ -663,6 +663,37 @@ function tally(res) {
     else t.failed++;
   }
   return t;
+}
+/* Overall risk: one 0-100 score per IOC from the per-source verdicts.
+   Any malicious verdict sets a floor of 50 (suspicious: 25); the share of rated
+   sources that flag the IOC (suspicious counts half) fills the rest. */
+const GRADES = [[80, "critical", "Critical"], [60, "high", "High"], [35, "medium", "Medium"], [1, "low", "Low"], [0, "clean", "Clean"]];
+function risk(res) {
+  const t = tally(res || {}), rated = t.malicious + t.suspicious + t.clean;
+  if (!rated) return { score: null, grade: "unknown", label: "Unrated", t, rated };
+  const floor = t.malicious ? 50 : t.suspicious ? 25 : 0;
+  const score = Math.round(floor + (100 - floor) * ((t.malicious + 0.5 * t.suspicious) / rated));
+  const [, grade, label] = GRADES.find(([min]) => score >= min);
+  return { score, grade, label, t, rated };
+}
+const riskOf = (id) => risk(S.results.get(id));
+function riskBadge(rk, big = false) {
+  return `<span class="risk g-${rk.grade} ${big ? "big" : ""}" title="${rk.rated ? `${rk.t.malicious} malicious · ${rk.t.suspicious} suspicious · ${rk.t.clean} clean of ${rk.rated} sources with a verdict` : "No source gave a verdict yet"}"><b>${rk.score ?? "–"}</b><span>${esc(rk.label)}</span></span>`;
+}
+// how old a lookup is; cached results keep the time they were first fetched
+function ago(ts) {
+  if (!ts) return "";
+  const s = Math.max(0, Date.now() / 1000 - ts);
+  return s < 60 ? "just now" : s < 3600 ? `${Math.round(s / 60)}m ago` : s < 86400 ? `${Math.round(s / 3600)}h ago` : `${Math.round(s / 86400)}d ago`;
+}
+function ageHTML(r) {
+  if (!r?.ts) return "";
+  return `<span class="age ${r.cached ? "cached" : ""}" title="Looked up ${esc(fmtTime(r.ts))}${r.cached ? " · served from cache (Re-scan skips the cache)" : ""}">${ago(r.ts)}${r.cached ? " · cache" : ""}</span>`;
+}
+function freshness(res) {
+  const list = Object.values(res || {}).filter((r) => r.ts);
+  if (!list.length) return null;
+  return { oldest: Math.min(...list.map((r) => r.ts)), cached: list.filter((r) => r.cached).length, total: list.length };
 }
 function detailText(r) {
   if (r.status !== "ok") return reasonText(r);
@@ -694,40 +725,52 @@ function reportEmptyHTML() {
 function renderReport() {
   const box = $("#report"), wrap = $("#reportWrap");
   const st = wrap.scrollTop;
+  // keep typing in the triage filter while results stream in
+  const f = document.activeElement?.dataset?.sumfilter !== undefined ? document.activeElement.selectionStart : null;
   box.innerHTML = reportHTML();
   wrap.scrollTop = st;
+  if (f != null) { const i = $("[data-sumfilter]", box); if (i) { i.focus(); i.setSelectionRange(f, f); } }
+}
+function seedNodes() { return [...S.nodes.values()].filter((n) => n.root); }
+function iocBarHTML(cur) {
+  // IOCs in this scan: the submitted ones, then any related indicator that has been scanned since
+  const scanned = [...S.nodes.values()].filter((x) => x.root || S.results.has(x.id) || S.busy.get(x.id)?.size);
+  const multi = seedNodes().length > 1;
+  if (scanned.length < 2) return "";
+  scanned.sort((a, c) => (c.root - a.root) || ((riskOf(c.id).score ?? -1) - (riskOf(a.id).score ?? -1)));
+  // a long bulk list lives in the summary table instead of chips
+  const chips = scanned.length > 14 ? scanned.filter((x) => x.id === cur?.id) : scanned;
+  return `<div class="rep-iocs"><span class="rep-lbl">IOCs in this scan</span>${multi ? `<button class="rep-ioc ${!cur ? "on" : ""}" data-summary title="Combined report for every submitted IOC">${ICON.select}All ${seedNodes().length} IOCs</button>` : ""}${chips.map((x) => {
+    const rk = riskOf(x.id);
+    return `<button class="rep-ioc ${x.id === cur?.id ? "on" : ""}" data-goto="${esc(x.id)}" title="${esc(x.value)} · ${esc(rk.label)}${rk.score != null ? " " + rk.score : ""}"><i class="g-${rk.grade}"></i><span class="ty" style="color:${tc(x.type)}">${esc(glyph(x.type))}</span>${esc(shortLabel(x))}</button>`;
+  }).join("")}${chips.length < scanned.length ? `<span class="msg">+${scanned.length - chips.length} more in the table</span>` : ""}</div>`;
 }
 function reportHTML() {
   if (!S.scanId) return reportEmptyHTML();
+  if (!S.selected && seedNodes().length > 1) return summaryHTML();
   const id = subjectId(), n = id && S.nodes.get(id);
   if (!n) return `<div class="rep"><div class="src-running"><span class="spinner"></span>Starting scan…</div></div>`;
   const res = S.results.get(n.id) || {}, busy = S.busy.get(n.id) || new Map();
-  const t = tally(res), b = sortResults(res);
+  const t = tally(res), b = sortResults(res), rk = risk(res), fr = freshness(res);
   const piv = S.meta.types[n.type]?.pivotable;
   const done = Object.keys(res).length;
 
-  // IOCs in this scan: the submitted ones, then any related indicator that has been scanned since
-  const scanned = [...S.nodes.values()].filter((x) => x.root || S.results.has(x.id) || S.busy.get(x.id)?.size)
-    .sort((a, c) => (c.root - a.root) || ((VRANK[c.verdict] || 0) - (VRANK[a.verdict] || 0)));
-  const iocBar = scanned.length > 1 ? `<div class="rep-iocs"><span class="rep-lbl">IOCs in this scan</span>${scanned.map((x) =>
-    `<button class="rep-ioc ${x.id === n.id ? "on" : ""}" data-goto="${esc(x.id)}" title="${esc(x.value)}"><i style="background:${x.verdict ? CFG.verdictColors[x.verdict] || "var(--line3)" : "var(--line3)"}"></i><span class="ty" style="color:${tc(x.type)}">${esc(glyph(x.type))}</span>${esc(shortLabel(x))}</button>`).join("")}</div>` : "";
-
-  const verdict = VLABEL[n.verdict] || (done ? "No verdict" : "Pending");
-  const head = `<div class="rep-head ${n.verdict || ""}">
+  const head = `<div class="rep-head g-${rk.grade}">
     <div class="rep-id">
       <div class="d-top">${tchip(n.type)}${n.root ? '<span class="vbadge">submitted</span>' : '<span class="vbadge">related</span>'}${n.noise ? '<span class="vbadge" title="Matches the noise filter">noise</span>' : ""}${n.private ? '<span class="vbadge">private</span>' : ""}</div>
       <div class="d-val rep-val"><span>${esc(n.value)}</span><button class="icon-btn" data-copy="${esc(n.value)}" title="Copy">${ICON.copy}</button></div>
       ${n.label && n.label !== n.value ? `<div class="d-sub">${esc(n.label)}</div>` : ""}
-      <div class="rep-verdict"><span class="rep-vword ${n.verdict || ""}">${verdict}</span>${n.score != null && VRANK[n.verdict] >= 2 ? `<span class="rep-vscore">score ${esc(n.score)}</span>` : ""}</div>
+      <div class="rep-verdict">${riskBadge(rk, true)}<span class="rep-vscore">${rk.rated ? `overall risk from ${rk.rated} source verdict${rk.rated === 1 ? "" : "s"}` : done || busy.size ? "waiting for a source to give a verdict" : ""}</span></div>
       ${n.tags.length ? `<div class="tags">${n.tags.slice(0, 16).map((x) => `<span class="tag">${esc(x)}</span>`).join("")}${n.tags.length > 16 ? `<span class="tag">+${n.tags.length - 16}</span>` : ""}</div>` : ""}
       <div class="d-actions">
-        ${piv ? `<button class="btn sm" data-rescan="${esc(n.id)}" title="Run every enabled source again, bypassing the cache">${ICON.redo}Re-scan</button>
+        ${piv ? `<button class="btn sm" data-rescan="${esc(n.id)}" title="Run every enabled source again, skipping the cache">${ICON.redo}Re-scan (skip cache)</button>
         <select class="btn sm" data-runmod="${esc(n.id)}" style="max-width:170px"><option value="">Run one source…</option>${modulesFor(n.type).map((m) => `<option value="${m.name}">${esc(m.label)}</option>`).join("")}</select>` : ""}
         <button class="btn sm ghost" data-view="graph" title="Open the pivot graph">${ICON.pivot}Graph</button>
       </div>
     </div>
     <div class="rep-score">${scoreRing(t)}<span>sources flag this IOC</span>
-      <div class="rep-progress">${busy.size ? `<span class="spinner"></span>${done} of ${done + busy.size} sources answered` : `${done} source${done === 1 ? "" : "s"} queried`}</div></div>
+      <div class="rep-progress">${busy.size ? `<span class="spinner"></span>${done} of ${done + busy.size} sources answered` : `${done} source${done === 1 ? "" : "s"} queried`}</div>
+      ${fr ? `<div class="rep-fresh ${fr.cached ? "cached" : ""}" title="Oldest result looked up ${esc(fmtTime(fr.oldest))}">Results from ${ago(fr.oldest)}${fr.cached ? ` · ${fr.cached} cached` : ""}</div>` : ""}</div>
   </div>`;
 
   const tile = (cls, v, label) => `<div class="rep-tile ${cls} ${v ? "" : "zero"}"><b>${v}</b><span>${label}</span></div>`;
@@ -738,12 +781,12 @@ function reportHTML() {
   const rows = Object.entries(res).sort((a, c) => order(c[1]) - order(a[1]) || modLabel(a[0]).localeCompare(modLabel(c[0])));
   const stCls = { ok: "ok", notfound: "none", skipped: "key", error: "err", ratelimited: "warn" };
   const table = `<div class="rep-sec"><h3>Source verdicts <em>${rows.length + busy.size}</em></h3>
-    <div class="tbl-wrap rep-tbl"><table><thead><tr><th>Source</th><th>Result</th><th>Score</th><th>Detail</th><th></th></tr></thead><tbody>
-    ${[...busy.keys()].map((m) => `<tr class="running"><td>${esc(modLabel(m))}</td><td><span class="spinner"></span></td><td></td><td class="dim">running…</td><td></td></tr>`).join("")}
+    <div class="tbl-wrap rep-tbl"><table><thead><tr><th>Source</th><th>Result</th><th>Score</th><th>Detail</th><th>Age</th><th></th></tr></thead><tbody>
+    ${[...busy.keys()].map((m) => `<tr class="running"><td>${esc(modLabel(m))}</td><td><span class="spinner"></span></td><td></td><td class="dim">running…</td><td></td><td></td></tr>`).join("")}
     ${rows.map(([m, r]) => {
       const lab = r.status === "ok" ? (r.verdict && r.verdict !== "info" ? vbadge(r.verdict) : '<span class="vbadge">info</span>') : `<span class="src-st ${stCls[r.status] || "err"}"><i class="src-dot"></i>${esc((SRC_STATUS[r.status] || SRC_STATUS.error).label)}</span>`;
       return `<tr ${r.status === "ok" ? `data-jump="${m}" class="jump"` : ""}><td>${esc(modLabel(m))}</td><td>${lab}</td><td>${r.score != null ? esc(r.score) : ""}</td><td class="dim" title="${esc(detailText(r))}">${esc(detailText(r))}</td>
-        <td><button class="icon-btn src-retry" data-rerun="${m}" title="Run again">${ICON.redo}</button></td></tr>`;
+        <td>${ageHTML(r)}</td><td><button class="icon-btn src-retry" data-rerun="${m}" title="Run again, skipping the cache">${ICON.redo}</button></td></tr>`;
     }).join("")}
     </tbody></table></div>${!rows.length && !busy.size ? `<div class="empty-note">${piv ? `Not scanned yet. <button class="btn xs" data-scan="${esc(n.id)}">Scan it</button>` : "Informational indicator — nothing to look up. Use the manual lookups instead."}</div>` : ""}</div>`;
 
@@ -751,7 +794,37 @@ function reportHTML() {
     ${b.good.map(([m, r]) => cardHTML(m, r)).join("") || (done && !busy.size ? '<div class="empty-note">No source returned data for this IOC.</div>' : "")}
     ${otherSourcesHTML(b)}</div>`;
 
-  return `<div class="rep">${iocBar}${head}${tiles}${table}<div class="rep-cols"><div>${findings}</div><div>${relatedHTML(n)}${manualHTML(n)}</div></div></div>`;
+  return `<div class="rep">${iocBarHTML(n)}${head}${tiles}${table}<div class="rep-cols"><div>${findings}</div><div>${relatedHTML(n)}${manualHTML(n)}</div></div></div>`;
+}
+// combined triage report for a bulk scan: every submitted IOC, riskiest first
+function summaryRows() {
+  const rows = seedNodes().map((n) => ({ n, rk: riskOf(n.id), busy: S.busy.get(n.id)?.size || 0, fr: freshness(S.results.get(n.id)) }));
+  return rows.sort((a, b) => ((b.rk.score ?? -1) - (a.rk.score ?? -1)) || a.n.value.localeCompare(b.n.value));
+}
+function summaryHTML() {
+  const seeds = summaryRows();
+  const q = (S.sumFilter || "").toLowerCase(), flaggedOnly = !!S.sumFlagged;
+  const shown = seeds.filter(({ n, rk }) => (!q || n.value.toLowerCase().includes(q) || n.tags.some((x) => x.toLowerCase().includes(q))) && (!flaggedOnly || (rk.score ?? 0) >= 35));
+  const count = (g) => seeds.filter((s) => s.rk.grade === g).length;
+  const running = seeds.reduce((a, s) => a + s.busy, 0);
+  const tile = (g, label) => `<div class="rep-tile g-${g} ${count(g) ? "" : "zero"}"><b>${count(g)}</b><span>${label}</span></div>`;
+  const types = {}; for (const { n } of seeds) types[n.type] = (types[n.type] || 0) + 1;
+  return `<div class="rep">${iocBarHTML(null)}
+    <div class="rep-head sum-head"><div class="rep-id">
+      <div class="d-top"><span class="vbadge">bulk scan</span>${Object.entries(types).map(([k, v]) => `<span class="tchip" style="color:${tc(k)};border-color:${hexA(tc(k), 0.45)};background:${hexA(tc(k), 0.1)}">${v} ${esc(v === 1 ? typeLabel(k) : CFG.plural[k] || typeLabel(k))}</span>`).join("")}</div>
+      <div class="d-val rep-val"><span>${seeds.length} IOCs</span></div>
+      <div class="rep-vscore" style="margin-top:6px">${running ? `<span class="spinner"></span> ${running} lookups running · ` : ""}${count("critical") + count("high")} need attention (high or critical risk)</div>
+      <div class="d-actions"><button class="btn sm" data-rescanall title="Run every enabled source again on all submitted IOCs, skipping the cache">${ICON.redo}Re-scan all (skip cache)</button>
+        <button class="btn sm ghost" data-copyflagged title="Copy every IOC rated medium risk or higher">${ICON.copy}Copy flagged IOCs</button></div>
+    </div></div>
+    <div class="rep-tiles">${tile("critical", "Critical")}${tile("high", "High")}${tile("medium", "Medium")}${tile("low", "Low")}${tile("clean", "Clean")}${tile("unknown", "Unrated")}</div>
+    <div class="rep-sec"><h3>Triage <em>${shown.length}${shown.length !== seeds.length ? ` of ${seeds.length}` : ""}</em>
+      <span class="sum-tools"><input class="inp" data-sumfilter placeholder="Filter by value or tag…" value="${esc(S.sumFilter || "")}"><label class="switch"><input type="checkbox" data-sumflagged ${flaggedOnly ? "checked" : ""}><i></i><span>Medium risk and above</span></label></span></h3>
+    <div class="tbl-wrap rep-tbl sum-tbl"><table><thead><tr><th>Risk</th><th>IOC</th><th>Type</th><th>Flagged by</th><th>Tags</th><th>Age</th></tr></thead><tbody>
+    ${shown.map(({ n, rk, busy, fr }) => `<tr class="jump" data-goto="${esc(n.id)}"><td>${riskBadge(rk)}</td><td class="ioc">${esc(n.value)}</td><td><span style="color:${tc(n.type)}">${esc(typeLabel(n.type))}</span></td>
+      <td>${busy ? `<span class="spinner"></span> ` : ""}${rk.rated ? `${rk.t.malicious + rk.t.suspicious} / ${rk.rated}` : busy ? "" : "–"}</td>
+      <td class="dim" title="${esc(n.tags.join(", "))}">${esc(n.tags.slice(0, 6).join(", "))}</td><td>${fr ? `<span class="age ${fr.cached ? "cached" : ""}">${ago(fr.oldest)}${fr.cached ? " · cache" : ""}</span>` : ""}</td></tr>`).join("")}
+    </tbody></table></div>${!shown.length ? '<div class="empty-note">No IOCs match the filter.</div>' : ""}</div></div>`;
 }
 // indicators the sources linked to this IOC - the way into pivoting
 function relatedHTML(n) {
@@ -879,6 +952,15 @@ async function scanMany(ids) {
   }
   toast(`${n} lookup${n === 1 ? "" : "s"} scheduled across ${ids.length} indicator${ids.length === 1 ? "" : "s"}`);
 }
+// run every enabled source again, skipping the cache
+async function rescan(ids) {
+  if (!S.scanId || !ids.length) return;
+  let n = 0;
+  for (const id of ids) {
+    try { n += (await api(`/api/scan/${S.scanId}/expand`, { body: { node_id: id, force: true } })).scheduled || 0; } catch (e) { toast(e.message, "error"); return; }
+  }
+  toast(`Re-scanning without cache: ${n} lookup${n === 1 ? "" : "s"}${ids.length > 1 ? ` across ${ids.length} IOCs` : ""}`);
+}
 async function removeNodes(ids) {
   try { await api(`/api/scan/${S.scanId}/remove`, { body: { node_ids: ids } }); } catch (e) { toast(e.message, "error"); }
 }
@@ -996,10 +1078,53 @@ function bgMenu(ev) {
 }
 
 // ------------------------------------------------------------------ scans
-async function startScan(add = false) {
-  const value = $("#seedInput").value.trim();
+// ------------------------------------------------------------------ bulk scan
+const BULK_MAX = 500;
+function bulkTokens(text) {
+  return [...new Set(String(text || "").split(/[\s,;|"'<>]+/).map((s) => s.trim()).filter(Boolean))];
+}
+const bulkPreview = debounce(async () => {
+  const toks = bulkTokens($("#bulkText").value), go = $("#bulkGo");
+  S.bulkSeeds = [];
+  if (!toks.length) { $("#bulkInfo").textContent = ""; $("#bulkPreview").innerHTML = ""; go.disabled = true; go.textContent = "Scan"; return; }
+  let r;
+  try { r = await api("/api/detect", { body: { value: toks.slice(0, 5000).join("\n") } }); } catch (e) { $("#bulkInfo").textContent = e.message; return; }
+  const seen = new Set(), skipUser = $("#bulkSkipUser").checked;
+  let users = 0;
+  const seeds = r.seeds.filter(([t, v]) => {
+    if (seen.has(t + "|" + v)) return false;
+    seen.add(t + "|" + v);
+    if (skipUser && t === "username") { users++; return false; }
+    return true;
+  });
+  S.bulkSeeds = seeds.slice(0, BULK_MAX);
+  const counts = {}; for (const [t] of S.bulkSeeds) counts[t] = (counts[t] || 0) + 1;
+  $("#bulkPreview").innerHTML = Object.entries(counts).map(([t, c]) => `<span class="chip"><i class="dot" style="background:${tc(t)}"></i>${esc(CFG.plural[t] || typeLabel(t))}<em>${c}</em></span>`).join("");
+  $("#bulkInfo").textContent = [`${seeds.length} IOC${seeds.length === 1 ? "" : "s"} recognised`, r.invalid.length ? `${r.invalid.length} ignored` : "",
+    users ? `${users} username${users === 1 ? "" : "s"} skipped` : "", seeds.length > BULK_MAX ? `only the first ${BULK_MAX} will be scanned` : ""].filter(Boolean).join(" · ");
+  go.disabled = !S.bulkSeeds.length;
+  go.textContent = S.bulkSeeds.length ? `Scan ${S.bulkSeeds.length} IOC${S.bulkSeeds.length === 1 ? "" : "s"}` : "Scan";
+}, 250);
+function openBulk() {
+  $("#bulkModal").classList.add("open");
+  bulkPreview();
+  setTimeout(() => $("#bulkText").focus(), 30);
+}
+function loadBulkFile(file) {
+  if (!file) return;
+  if (file.size > 5e6) return toast("That file is over 5 MB", "warn");
+  file.text().then((txt) => { const ta = $("#bulkText"); ta.value = (ta.value.trim() ? ta.value.trim() + "\n" : "") + txt; bulkPreview(); });
+}
+async function runBulk() {
+  if (!S.bulkSeeds?.length) return;
+  $("#bulkModal").classList.remove("open");
+  await startScan(false, S.bulkSeeds.map(([, v]) => v).join("\n"));
+}
+
+async function startScan(add = false, bulkValue = null) {
+  const value = bulkValue ?? $("#seedInput").value.trim();
   if (!value) { $("#seedInput").focus(); return; }
-  const type = $("#typeSel").value;
+  const type = bulkValue ? "auto" : $("#typeSel").value;
   if (add && S.scanId) {
     try {
       const r = await api(`/api/scan/${S.scanId}/add`, { body: { value, type } });
@@ -1011,7 +1136,7 @@ async function startScan(add = false) {
   try {
     const r = await api("/api/scan", { body: { value, type, overrides: { depth: +$("#depthSel").value, auto: $("#autoPivot").checked } } });
     resetScan();
-    S.scanId = r.id; S.created = Date.now() / 1000; S.title = value;
+    S.scanId = r.id; S.created = Date.now() / 1000; S.title = r.seeds.length > 1 ? `Bulk scan (${r.seeds.length} IOCs)` : value;
     history.replaceState(null, "", "#scan=" + r.id);
     if (r.invalid?.length) toast("Ignored (not recognised): " + r.invalid.join(", "), "warn");
     setStatus("running");
@@ -1145,6 +1270,14 @@ function bind() {
   $("#exportMenu").onclick = (e) => { const b = e.target.closest("[data-export]"); if (b) { closeMenus(); doExport(b.dataset.export); } };
   $("#logToggle").onclick = () => $("#logbar").classList.toggle("open");
   $("#layoutSel").onchange = (e) => { saveUI({ layout: e.target.value }); runLayout({ fit: true, randomize: true }); };
+  $("#bulkBtn").onclick = openBulk;
+  $("#bulkText").oninput = bulkPreview;
+  $("#bulkSkipUser").onchange = bulkPreview;
+  $("#bulkFile").onchange = (e) => { loadBulkFile(e.target.files[0]); e.target.value = ""; };
+  $("#bulkGo").onclick = runBulk;
+  $("#bulkText").ondragover = (e) => e.preventDefault();
+  $("#bulkText").ondrop = (e) => { if (e.dataTransfer.files[0]) { e.preventDefault(); loadBulkFile(e.dataTransfer.files[0]); } };
+  $("#bulkText").onkeydown = (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) runBulk(); };
   $("#autoPivot").onchange = () => { $("#depthWrap").hidden = !$("#autoPivot").checked; if (!S.scanId) renderDetails(); };
   $("#viewSeg").onclick = (e) => { const b = e.target.closest("[data-view]"); if (b) setView(b.dataset.view); };
   $("#report").onclick = (e) => {
@@ -1165,9 +1298,22 @@ function bind() {
     const jp = t.closest("[data-jump]");
     if (jp) { const c = $(`#card-${CSS.escape(jp.dataset.jump)}`); if (c) { S.collapsed.delete(jp.dataset.jump); c.classList.remove("collapsed"); c.scrollIntoView({ behavior: "smooth", block: "start" }); c.classList.add("flash"); setTimeout(() => c.classList.remove("flash"), 900); } return; }
     const tg = t.closest("[data-toggle]"); if (tg) { const m = tg.dataset.toggle; S.collapsed.has(m) ? S.collapsed.delete(m) : S.collapsed.add(m); tg.parentElement.classList.toggle("collapsed"); return; }
+    if (t.closest("[data-summary]")) return select(null);
+    if (t.closest("[data-rescanall]")) return rescan(seedNodes().map((n) => n.id));
+    if (t.closest("[data-copyflagged]")) {
+      const v = summaryRows().filter(({ rk }) => (rk.score ?? 0) >= 35).map(({ n }) => n.value);
+      return v.length ? copy(v.join("\n")) : toast("No IOCs at medium risk or above", "warn");
+    }
+    if (t.closest("[data-sumfilter], .sum-tools")) return;
     const go = t.closest("[data-goto]"); if (go) return select(go.dataset.goto);
   };
-  $("#report").onchange = (e) => { const s = e.target.closest("[data-runmod]"); if (s && s.value) { pivot(s.dataset.runmod, { modules: [s.value], force: true }); s.value = ""; } };
+  $("#report").addEventListener("input", debounce((e) => { if (e.target.dataset.sumfilter !== undefined) { S.sumFilter = e.target.value.trim(); renderReport(); } }, 200));
+  $("#report").onchange = (e) => {
+    if (e.target.dataset.sumflagged !== undefined) { S.sumFlagged = e.target.checked; return renderReport(); }
+    const s = e.target.closest("[data-runmod]"); if (s && s.value) { pivot(s.dataset.runmod, { modules: [s.value], force: true }); s.value = ""; }
+  };
+  // keep "5m ago" labels current
+  setInterval(() => { if (S.view === "report" && S.scanId && !$(".modal.open") && document.activeElement?.dataset?.sumfilter === undefined) renderReport(); }, 60000);
   $("#report").addEventListener("toggle", (e) => {
     const g = e.target.closest?.("[data-group]"); if (g) (S.srcOpen ||= {})[g.dataset.group] = g.open;
   }, true);

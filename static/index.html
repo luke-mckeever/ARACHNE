@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/app.css?v=2.0.1">
+<link rel="stylesheet" href="/css/app.css?v=2.1.0">
 <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/layout-base@2.0.1/layout-base.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/cose-base@2.2.0/cose-base.js"></script>
@@ -41,6 +41,8 @@
     </div>
     <button type="button" id="addBtn" class="btn ghost icon-btn" title="Add IOC(s) to the current scan instead of starting a new one" disabled>
       <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button type="button" id="bulkBtn" class="btn ghost icon-btn" title="Bulk scan: paste or upload a list of IOCs">
+      <svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg></button>
     <button id="scanBtn" class="btn primary"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>Scan</button>
     <button type="button" id="stopBtn" class="btn danger" hidden><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>Stop</button>
   </form>
@@ -142,6 +144,23 @@
   </div>
 </div>
 
+<div class="modal" id="bulkModal">
+  <div class="modal-box sm">
+    <div class="modal-h"><h2>Bulk scan</h2><button class="icon-btn" data-close><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="modal-b bulk">
+      <p class="msg">Paste a list of IOCs, or load or drop a .txt / .csv file. Anything separated by new lines, commas, spaces or semicolons works, and defanged values like <span class="mono">hxxp://</span> and <span class="mono">[.]</span> are fine. You get one combined report, sorted by risk.</p>
+      <textarea id="bulkText" spellcheck="false" placeholder="185.220.101.1&#10;evil-domain[.]com&#10;hxxps://phish.example/login&#10;44d88612fea8a8f36de82e1278abb02f"></textarea>
+      <div class="row bulk-row">
+        <label class="btn sm ghost">Load file…<input type="file" id="bulkFile" accept=".txt,.csv,.log,.ioc,.tsv,.json,text/*" hidden></label>
+        <label class="switch" title="Stray words in a file look like usernames - skip them unless you're scanning usernames"><input type="checkbox" id="bulkSkipUser" checked><i></i><span>Skip usernames</span></label>
+        <span id="bulkInfo" class="msg"></span>
+      </div>
+      <div id="bulkPreview" class="chips"></div>
+      <div class="row" style="justify-content:flex-end"><button type="button" class="btn ghost" data-close>Cancel</button><button type="button" class="btn primary" id="bulkGo" disabled>Scan</button></div>
+    </div>
+  </div>
+</div>
+
 <div class="modal" id="promptModal">
   <div class="modal-box xs">
     <div class="modal-h"><h2 id="promptTitle">Add indicator</h2><button class="icon-btn" data-close><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
@@ -159,8 +178,8 @@
   </div>
 </div>
 
-<script src="/js/config.js?v=2.0.1"></script>
-<script src="/js/app.js?v=2.0.1"></script>
-<script src="/js/settings.js?v=2.0.1"></script>
+<script src="/js/config.js?v=2.1.0"></script>
+<script src="/js/app.js?v=2.1.0"></script>
+<script src="/js/settings.js?v=2.1.0"></script>
 </body>
 </html>
