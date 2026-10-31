@@ -37,6 +37,8 @@ python server.py
 
 The UI opens at `http://127.0.0.1:8777`. On Windows you can double-click `start.bat` instead, and on Linux/macOS run `./start.sh`.
 
+To shut it down, press Ctrl+C in its window, or double-click `stop.bat` (Windows) / run `./stop.sh` (Linux/macOS). The stop script finds the server through `data/arachne.pid`; if you started it on another port, pass the port: `stop.bat 9000` or `./stop.sh 9000`.
+
 Optional flags: `--port 9000` and `--no-browser`.
 
 ### API keys

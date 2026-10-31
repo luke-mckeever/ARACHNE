@@ -303,10 +303,19 @@ def main():
     print(f"  UI: {url}\n  Ctrl+C to stop\n")
     if not a.no_browser:
         threading.Timer(0.8, lambda: webbrowser.open(url)).start()
+    # stop.bat / stop.sh read this to find the running server
+    pid_file = os.path.join(DATA, "arachne.pid")
+    with open(pid_file, "w", encoding="utf-8") as fh:
+        fh.write(f"{os.getpid()} {a.port}\n")
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
         print("\n  bye")
+    finally:
+        try:
+            os.remove(pid_file)
+        except OSError:
+            pass
 
 
 if __name__ == "__main__":
