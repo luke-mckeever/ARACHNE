@@ -126,7 +126,9 @@ def normalize(etype: str, value):
             v = v[2:]
         return v if RE_DOMAIN.match(v) and not is_ip(v) else None
     if etype == "email":
-        v = v.lower().removeprefix("mailto:")
+        v = v.lower()
+        if v.startswith("mailto:"):  # str.removeprefix needs Python 3.9+
+            v = v[len("mailto:"):]
         return v if RE_EMAIL.match(v) else None
     if etype == "url":
         try:
