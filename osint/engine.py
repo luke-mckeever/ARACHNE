@@ -493,6 +493,8 @@ class ScanManager:
         return s
 
     def save(self, scan):
+        if getattr(scan, "deleted", False):  # a stopping scan finishing after Delete must not reappear
+            return
         try:
             snap = scan.snapshot()
             with open(os.path.join(self.dir, f"{scan.id}.json"), "w", encoding="utf-8") as fh:
@@ -525,10 +527,22 @@ class ScanManager:
                 "malicious": sum(1 for n in nodes if n.get("verdict") == "malicious"),
                 "suspicious": sum(1 for n in nodes if n.get("verdict") == "suspicious")}
 
+    def running(self):
+        with self.lock:
+            return [s for s in self.scans.values() if s.status in ("running", "stopping")]
+
+    def stop_all(self):
+        """Stop every scan in progress, including ones the browser isn't showing."""
+        live = [s for s in self.running() if s.status == "running"]
+        for s in live:
+            s.stop()
+        return len(live)
+
     def delete(self, sid):
         with self.lock:
             s = self.scans.pop(sid, None)
         if s:
+            s.deleted = True
             s.stop()
         path = os.path.join(self.dir, f"{sid}.json")
         if sid.isalnum() and os.path.exists(path):

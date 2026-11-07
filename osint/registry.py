@@ -208,7 +208,7 @@ class Ctx:
             try:
                 j = r.json()
                 if isinstance(j, dict):
-                    msg = j.get("message") or j.get("error") or j.get("detail")
+                    msg = j.get("message") or j.get("error") or j.get("detail") or j.get("title")
             except Exception:
                 pass
             raise NotFound(str(msg) if msg else "Not found")
@@ -217,6 +217,9 @@ class Ctx:
         try:
             return r.json()
         except ValueError:
+            if r.truncated:
+                raise ModuleError(f"Response from {url.split('/')[2]} is larger than "
+                                  f"{len(r.body) // 1_000_000} MB and was cut off")
             raise ModuleError(f"Invalid JSON from {url.split('/')[2]}")
 
     def post_json(self, url, **kw):

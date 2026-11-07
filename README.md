@@ -53,7 +53,7 @@ So you don't have to paste them in again on a new machine or after a fresh clone
 |---|---|
 | ![Pivot graph](docs/screenshots/groups-collapsed.png) **Graph view:** the pivot web | ![Intel panel](docs/screenshots/intel.png) **Graph view:** per-node intel |
 | ![Relations](docs/screenshots/relations.png) **Graph view:** relations | ![Username scan](docs/screenshots/username.png) **Username scan** |
-| ![Module settings](docs/screenshots/settings-modules.png) **Settings:** modules | |
+| ![Module settings](docs/screenshots/settings-modules.png) **Settings:** modules | ![Scan history](docs/screenshots/history.png) **History:** running scans and Stop all |
 
 ## Features
 
@@ -67,6 +67,7 @@ So you don't have to paste them in again on a new machine or after a fresh clone
 - **Settings for nearly everything:** turn modules on or off, set rate limits, add custom username sites and lookup links, change colours, set a proxy, and more.
 - **Exports:** scan report as PDF (via the browser's Save as PDF) or HTML, a STIX 2.1 bundle (an indicator per IOC with the risk score as confidence, plus linked malware families) for TIPs and SIEMs, per-source verdicts CSV, JSON, a plain IOC list or a PNG of the graph.
 - **Saved scans:** every scan is saved, so you can reopen it later and keep pivoting.
+- **Stop all scans:** scans keep running even if no tab is showing them. **History** highlights any that are still running and has a **Stop all** button, and the same switch lives under **Settings → Network & cache**.
 
 ## Sources
 
@@ -84,6 +85,10 @@ Every module has a **Test** button in Settings, so you can check a key works bef
 - Use **Clear all** in the graph toolbar to start fresh. The old scan stays in History.
 - With auto-pivot, depth 1 is usually enough. Depth 2+ on a busy IP will hit the node limit quickly.
 - The free VirusTotal tier is 4 requests/min, so VT results come in slowly. That's expected.
+- If the app feels sluggish, check **History** for scans still running in the background (big auto-pivots can take a while) and use **Stop all**.
+- archive.org's URL index is often slow or overloaded. When it doesn't answer, the Wayback Machine module still shows the first and last capture and says why the full URL list is missing.
+- Hunter.io's free plan returns 10 emails per domain; the module adapts to your plan's limit and shows e.g. "10 of 4218".
+- ThreatFox only flags exact matches: a URL on the same host, or the same IP on any port. Domains that merely contain the IOC (e.g. `gillzmentortest.com` for `test.com`) are ignored.
 
 ## Adding a module
 

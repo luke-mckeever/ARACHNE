@@ -27,8 +27,10 @@ def add_ioc(r, ioc, ioc_type, rel, via=None):
         rate=60, category="Malware", sample="094fd325049b8a9cf6d3e5ef2a6d4cc6a567d7d49c35f8bb8dd9e3c6acf3d78d",
         desc="abuse.ch MalwareBazaar sample info: family, tags, file names, delivery, vendor intel.")
 def malwarebazaar(e, ctx, r):
+    # Popular samples carry huge comment threads (100 MB+ for some), so allow a much bigger body.
     d = ctx.post_json("https://mb-api.abuse.ch/api/v1/", data={"query": "get_info", "hash": e.value},
-                      headers={"Auth-Key": ctx.need("abusech")})
+                      headers={"Auth-Key": ctx.need("abusech")}, max_bytes=250_000_000,
+                      timeout=max(ctx.timeout, 90))
     if d.get("query_status") != "ok":
         raise NotFound(f"Not in MalwareBazaar ({d.get('query_status')})")
     s = d["data"][0]
@@ -70,7 +72,8 @@ def malwarebazaar(e, ctx, r):
     yara = s.get("yara_rules") or []
     r.table("YARA matches", ["Rule", "Author", "Description"], [[y.get("rule_name"), y.get("author"), y.get("description")] for y in yara])
     r.link("MalwareBazaar", f"https://bazaar.abuse.ch/sample/{s.get('sha256_hash')}/")
-    r.data = s
+    r.kv("Comments", len(s.get("comments") or []) or None)
+    r.data = {k: v for k, v in s.items() if k != "comments"}
 
 
 @module("threatfox_hash", "ThreatFox (hash)", types=H, provider="abusech", keys=["abusech"], key_required=True,
@@ -146,10 +149,16 @@ def hybrid(e, ctx, r):
         rep = ctx.get_json(f"https://www.hybrid-analysis.com/api/v2/overview/{e.value}", headers=hdr)
     else:
         res = ctx.get_json("https://www.hybrid-analysis.com/api/v2/search/hash", params={"hash": e.value}, headers=hdr)
+        sha = (res.get("sha256s") or [None])[0] if isinstance(res, dict) else None
         res = res.get("reports") if isinstance(res, dict) else res
-        if not res:
+        if sha:
+            # Individual reports are often failed sandbox runs with no verdict; the overview
+            # aggregates every report for the file.
+            rep = ctx.get_json(f"https://www.hybrid-analysis.com/api/v2/overview/{sha}", headers=hdr)
+        elif res:
+            rep = next((x for x in res if x.get("verdict")), res[0])
+        else:
             raise NotFound("No reports")
-        rep = res[0]
     r.data = rep
     verdict = rep.get("verdict")
     r.kv("Verdict", verdict)

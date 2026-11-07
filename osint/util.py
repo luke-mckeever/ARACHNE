@@ -4,6 +4,7 @@ import hashlib
 import http.client
 import json
 import os
+import re
 import socket
 import ssl
 import threading
@@ -122,15 +123,19 @@ class HttpError(Exception):
                     return str(v)[:n]
         except Exception:
             pass
+        m = re.search(r"<title[^>]*>(.*?)</title>", txt, re.I | re.S)
+        if m and m.group(1).strip():  # HTML error page: its title says more than the markup
+            return " ".join(m.group(1).split())[:n]
         return " ".join(txt.split())[:n]
 
 
 class Response:
-    def __init__(self, status, headers, body, url):
+    def __init__(self, status, headers, body, url, truncated=False):
         self.status = status
         self.headers = headers
         self.body = body
         self.url = url
+        self.truncated = truncated  # body was cut at max_bytes, so it is incomplete
 
     def text(self):
         ctype = self.headers.get("Content-Type", "") if self.headers else ""
@@ -177,7 +182,7 @@ def http_request(url, method="GET", params=None, headers=None, data=None, json_b
         for attempt in range(retries + 1):
             try:
                 resp = opener.open(req, timeout=timeout)
-                status, rh, raw, final = resp.status, resp.headers, resp.read(max_bytes), resp.geturl()
+                status, rh, raw, final = resp.status, resp.headers, resp.read(max_bytes + 1), resp.geturl()
                 break
             except urllib.error.HTTPError:
                 raise
@@ -191,6 +196,8 @@ def http_request(url, method="GET", params=None, headers=None, data=None, json_b
             raw = e.read(max_bytes) if e.fp else b""
         except Exception:
             raw = b""
+    truncated = len(raw) > max_bytes
+    raw = raw[:max_bytes]
     enc = (rh.get("Content-Encoding") or "").lower() if rh else ""
     try:
         if enc == "gzip":
@@ -199,7 +206,7 @@ def http_request(url, method="GET", params=None, headers=None, data=None, json_b
             raw = zlib.decompress(raw)
     except Exception:
         pass
-    return Response(status, rh, raw, final)
+    return Response(status, rh, raw, final, truncated)
 
 
 class RateLimiter:

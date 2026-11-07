@@ -5,9 +5,9 @@ import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 
 from .. import entities as E
-from ..registry import NotFound, module
+from ..registry import ModuleError, NotFound, module
 from ..sites import SITES
-from ..util import http_request, ts
+from ..util import HttpError, http_request, ts
 
 
 def site_list(settings):
@@ -125,8 +125,14 @@ def github_user(e, ctx, r):
 @module("reddit", "Reddit Profile", types=["username"], provider="reddit", rate=20, category="People", enabled=False,
         sample="spez", desc="Reddit account age, karma and profile description. Off by default: Reddit blocks many unauthenticated clients.")
 def reddit(e, ctx, r):
-    d = ctx.get_json(f"https://www.reddit.com/user/{urllib.parse.quote(e.value)}/about.json",
-                     user_agent="ARACHNE-OSINT/1.0 (by /u/arachne)")
+    try:
+        d = ctx.get_json(f"https://www.reddit.com/user/{urllib.parse.quote(e.value)}/about.json",
+                         user_agent="ARACHNE-OSINT/1.0 (by /u/arachne)")
+    except HttpError as ex:
+        if ex.status == 403:
+            raise ModuleError("Reddit refused the request (HTTP 403) - it blocks anonymous API access "
+                              "from many networks")
+        raise
     u = d.get("data") or {}
     if u.get("is_suspended"):
         r.tag("suspended")

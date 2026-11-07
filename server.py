@@ -78,13 +78,19 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def body(self):
-        n = int(self.headers.get("Content-Length") or 0)
-        if not n:
-            return {}
-        try:
-            return json.loads(self.rfile.read(n).decode() or "{}")
-        except ValueError:
-            return {}
+        # Read once per request and keep it: on a keep-alive connection any unread body bytes
+        # would be parsed as the start of the next request ("Unsupported method ('{}GET')").
+        if not hasattr(self, "_body"):
+            n = int(self.headers.get("Content-Length") or 0)
+            try:
+                self._body = json.loads(self.rfile.read(n).decode() or "{}") if n else {}
+            except ValueError:
+                self._body = {}
+        return self._body
+
+    def parse_request(self):
+        self.__dict__.pop("_body", None)  # one handler serves every request on a connection
+        return super().parse_request()
 
     def err(self, msg, status=400):
         self.send_json({"error": msg}, status)
@@ -108,6 +114,7 @@ class Handler(BaseHTTPRequestHandler):
             self.err(str(ex), 500)
 
     def do_POST(self):
+        self.body()
         if not self._origin_ok():
             return self.err("cross-origin request refused", 403)
         try:
@@ -117,6 +124,7 @@ class Handler(BaseHTTPRequestHandler):
             self.err(str(ex), 500)
 
     def do_DELETE(self):
+        self.body()
         if not self._origin_ok():
             return self.err("cross-origin request refused", 403)
         self.route("DELETE")
@@ -171,6 +179,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"id": scan.id, "seeds": seeds, "invalid": bad})
         if key == ("GET", "/api/scans"):
             return self.send_json(manager.list())
+        if key == ("GET", "/api/scans/running"):
+            return self.send_json({"running": [s.id for s in manager.running()]})
+        if key == ("POST", "/api/scans/stop"):
+            return self.send_json({"stopped": manager.stop_all()})
         m = re.match(r"^/api/scans/([a-f0-9]+)$", path)
         if m and method == "DELETE":
             manager.delete(m.group(1))

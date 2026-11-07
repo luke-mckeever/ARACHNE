@@ -48,7 +48,14 @@ function renderSettingsTab() {
   body.innerHTML = ({ keys: tabKeys, modules: tabModules, pivot: tabPivot, noise: tabNoise, sites: tabSites, links: tabLinks,
     appearance: tabAppearance, network: tabNetwork, backup: tabBackup })[setTab]();
   body.scrollTop = 0;
-  if (setTab === "network") api("/api/cache").then((r) => { const e = $("#cacheCount"); if (e) e.textContent = `${r.entries} cached results`; });
+  if (setTab === "network") {
+    api("/api/cache").then((r) => { const e = $("#cacheCount"); if (e) e.textContent = `${r.entries} cached results`; });
+    api("/api/scans/running").then((r) => {
+      const e = $("#runCount"), b = $("#stopAllBtn"); if (!e) return;
+      e.textContent = r.running.length ? `${r.running.length} running in the background` : "No scans running";
+      b.disabled = !r.running.length;
+    });
+  }
 }
 
 // ------------------------------------------------------------------ tabs
@@ -178,7 +185,9 @@ function tabNetwork() {
     <h4>Result cache</h4>
     ${field("Cache results", "Reuse module results for repeat lookups (saves API quota)", sw("cache.enabled", c.enabled))}
     ${field("Cache lifetime", "Hours", num("cache.ttl_hours", c.ttl_hours, 0, 8760))}
-    ${field("Clear cache", `<span id="cacheCount"></span>`, '<button class="btn sm" data-act-set="clearCache">Clear now</button>')}`;
+    ${field("Clear cache", `<span id="cacheCount"></span>`, '<button class="btn sm" data-act-set="clearCache">Clear now</button>')}
+    <h4>Scans</h4>
+    ${field("Stop all scans", `Cancels every running scan, including ones started in another tab or window. <span id="runCount"></span>`, '<button class="btn sm" id="stopAllBtn" data-act-set="stopAllScans" disabled>Stop all</button>')}`;
 }
 function tabBackup() {
   return `<h3>Backup & reset</h3><p class="lead">Export your configuration to move it between machines.</p>
@@ -318,6 +327,7 @@ function bindSettings() {
     if (act === "resetLinks") { await saveUI({ links: null }); renderSettingsTab(); return; }
     if (act === "resetColors") { await saveUI({ typeColors: {} }); renderSettingsTab(); return; }
     if (act === "resetUI") { S.settings = await api("/api/settings/reset", { body: { section: "ui" } }); applyUI(); renderSettingsTab(); return; }
+    if (act === "stopAllScans") { const r = await api("/api/scans/stop", { body: {} }); toast(`Stopped ${r.stopped} scan${r.stopped === 1 ? "" : "s"}`); renderSettingsTab(); return; }
     if (act === "clearCache") { const r = await api("/api/cache/clear", { body: {} }); toast(`Cleared ${r.cleared} cached results`); renderSettingsTab(); return; }
     if (act === "exportApiKeys") {
       const d = await api("/api/keys/export");

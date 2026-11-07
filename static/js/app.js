@@ -1165,9 +1165,11 @@ async function loadScan(id) {
 async function openHistory() {
   const list = await api("/api/scans");
   const box = $("#historyList");
-  box.innerHTML = list.length ? list.map((s) => `<div class="hist" data-load="${s.id}"><div><b>${esc(s.title || s.id)}</b><small>${esc(fmtTime(s.created))} · ${esc(s.status)}</small></div>
+  const live = list.filter((s) => s.status === "running").length;
+  box.innerHTML = (live ? `<div class="hist-run"><span class="spinner"></span>${live} scan${live === 1 ? " is" : "s are"} still running<button class="btn sm" data-stopall>Stop all</button></div>` : "") +
+    (list.length ? list.map((s) => `<div class="hist ${s.status === "running" || s.status === "stopping" ? "live" : ""}" data-load="${s.id}"><div><b>${esc(s.title || s.id)}</b><small>${esc(fmtTime(s.created))} · ${esc(s.status)}</small></div>
     <div class="nums"><span>${s.nodes} nodes</span><span class="m">${s.malicious} mal</span><span class="s">${s.suspicious} sus</span></div>
-    <button class="icon-btn" data-del="${s.id}" title="Delete">${ICON.trash}</button></div>`).join("") : '<div class="msg">No saved scans yet. Scans are saved automatically when they finish.</div>';
+    <button class="icon-btn" data-del="${s.id}" title="Delete">${ICON.trash}</button></div>`).join("") : '<div class="msg">No saved scans yet. Scans are saved automatically when they finish.</div>');
   $("#historyModal").classList.add("open");
 }
 
@@ -1471,6 +1473,7 @@ function bind() {
   }, true);
   $("#details").onchange = (e) => { if (e.target.dataset.act === "runmod" && e.target.value) { pivot(S.selected, { modules: [e.target.value], force: true }); e.target.value = ""; } };
   $("#historyList").onclick = async (e) => {
+    if (e.target.closest("[data-stopall]")) { const r = await api("/api/scans/stop", { body: {} }); toast(`Stopped ${r.stopped} scan${r.stopped === 1 ? "" : "s"}`); return openHistory(); }
     const del = e.target.closest("[data-del]");
     if (del) { e.stopPropagation(); await api(`/api/scans/${del.dataset.del}`, { method: "DELETE" }); if (S.scanId === del.dataset.del) resetScan(); return openHistory(); }
     const l = e.target.closest("[data-load]"); if (l) { $("#historyModal").classList.remove("open"); loadScan(l.dataset.load); }

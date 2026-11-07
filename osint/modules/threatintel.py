@@ -191,6 +191,17 @@ def otx(e, ctx, r):
     r.data = {k_: g.get(k_) for k_ in ("indicator", "type", "reputation", "sections", "asn", "country_name", "whois")}
 
 
+def threatfox_match(e, ioc):
+    ioc = ioc.strip().lower()
+    v = e.value.lower()
+    if e.type == "ipv4":
+        return ioc == v or ioc.startswith(v + ":")
+    if e.type == "domain":
+        host = urllib.parse.urlsplit(ioc).hostname if "://" in ioc else ioc.split(":")[0]
+        return host == v
+    return ioc.rstrip("/") == v.rstrip("/")  # url
+
+
 @module("threatfox", "ThreatFox", types=["ipv4", "domain", "url"], provider="abusech", keys=["abusech"],
         key_required=True, rate=60, category="Threat Intel", sample="139.180.203.104",
         desc="abuse.ch ThreatFox IOC database - C2 servers, botnets, malware families.")
@@ -200,7 +211,11 @@ def threatfox(e, ctx, r):
                       headers={"Auth-Key": ctx.need("abusech")})
     if d.get("query_status") != "ok" or not isinstance(d.get("data"), list):
         raise NotFound(f"Not listed ({d.get('query_status')})")
-    iocs = d["data"]
+    # The search is a substring match (needed because IPs are stored as "ip:port"), so
+    # "test.com" also returns gillzmentortest.com. Keep only IOCs that are this indicator.
+    iocs = [i for i in d["data"] if threatfox_match(e, i.get("ioc") or "")]
+    if not iocs:
+        raise NotFound(f"Not listed ({len(d['data'])} partial matches on other indicators ignored)")
     r.set_verdict("malicious", max(int(i.get("confidence_level") or 50) for i in iocs))
     r.kv("Matches", len(iocs))
     fams = sorted({i.get("malware_printable") for i in iocs if i.get("malware_printable")})

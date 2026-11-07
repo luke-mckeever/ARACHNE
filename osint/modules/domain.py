@@ -1,10 +1,12 @@
 """Domain modules."""
 import datetime as dt
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 from .. import entities as E
 from ..registry import DNS_TYPES, ModuleError, NotFound, module
+from ..util import HttpError, friendly_error
 from .ip import rdap_emails
 
 DOM = ["domain"]
@@ -144,7 +146,8 @@ def crtsh(e, ctx, r):
     resp = ctx.get("https://crt.sh/", params={"q": f"%.{e.value}", "output": "json"},
                    timeout=max(ctx.timeout, 45))
     if resp.status != 200:
-        raise ModuleError(f"crt.sh returned HTTP {resp.status} (it is often overloaded - retry later)")
+        raise ModuleError(f"crt.sh returned HTTP {resp.status} - it is often overloaded and fails on domains "
+                          "with very many certificates; retry later")
     try:
         certs = resp.json() or []
     except ValueError:
@@ -206,12 +209,22 @@ def securitytrails(e, ctx, r):
         category="People", sample="stripe.com",
         desc="Email addresses, names and positions associated with a domain.")
 def hunter_domain(e, ctx, r):
-    d = ctx.get_json("https://api.hunter.io/v2/domain-search",
-                     params={"domain": E.registered_domain(e.value), "api_key": ctx.need("hunter"), "limit": 25})["data"]
+    params = {"domain": E.registered_domain(e.value), "api_key": ctx.need("hunter"), "limit": 100}
+    try:
+        j = ctx.get_json("https://api.hunter.io/v2/domain-search", params=params)
+    except HttpError as ex:
+        # Plans cap the page size ("limited to 10 email addresses on your current plan"): retry at the cap.
+        cap = re.search(r"limited to (\d+) email", ex.snippet(400)) if ex.status == 400 else None
+        if not cap:
+            raise
+        params["limit"] = int(cap.group(1))
+        j = ctx.get_json("https://api.hunter.io/v2/domain-search", params=params)
+    d = j["data"]
     emails = d.get("emails") or []
+    total = (j.get("meta") or {}).get("results")
     r.kv("Organisation", d.get("organization"))
     r.kv("Email pattern", d.get("pattern"))
-    r.kv("Emails found", len(emails))
+    r.kv("Emails found", f"{len(emails)} of {total}" if total and total > len(emails) else len(emails))
     r.kv("Disposable / webmail", f"{d.get('disposable')} / {d.get('webmail')}")
     if d.get("organization"):
         r.add("org", d["organization"], "organisation")
@@ -227,17 +240,50 @@ def hunter_domain(e, ctx, r):
         category="History", sample="example.com",
         desc="Archived URL history: first/last capture, interesting files and endpoints.")
 def wayback(e, ctx, r):
-    rows = ctx.get_json("https://web.archive.org/cdx/search/cdx", params={
-        "url": e.value, "matchType": "domain", "output": "json", "fl": "timestamp,original,statuscode,mimetype",
-        "collapse": "urlkey", "limit": 500}, timeout=max(ctx.timeout, 30), retries=0)
-    if not rows or len(rows) < 2:
-        raise NotFound("No archived URLs")
-    rows = rows[1:]
-    stamps = sorted(r_[0] for r_ in rows)
+    cdx = "https://web.archive.org/cdx/search/cdx"
+    fl = "timestamp,original,statuscode,mimetype"
     fmt = lambda s: f"{s[:4]}-{s[4:6]}-{s[6:8]}"
-    r.kv("Archived URLs", len(rows) if len(rows) < 500 else "500+")
+    # The domain-wide index query is slow (40s+ is normal, big sites time out or get a 503), so
+    # first ask for the first and last capture of the site root, which answers in ~1-3s.
+    ends = []
+    for lim in (1, -1):
+        try:
+            rows = ctx.get_json(cdx, params={"url": e.value, "output": "json", "fl": fl, "limit": lim},
+                                timeout=max(ctx.timeout, 30), retries=1)
+            ends += (rows or [])[1:]
+        except Exception:
+            pass
+    rows, busy = [], None
+    try:
+        for attempt in range(2):
+            try:
+                rows = ctx.get_json(cdx, params={"url": e.value, "matchType": "domain", "output": "json", "fl": fl,
+                                                 "collapse": "urlkey", "limit": 500},
+                                    timeout=max(ctx.timeout, 90), retries=0)
+                break
+            except HttpError as ex:
+                if ex.status != 503 or attempt:  # 503 is often a momentary load shed: one more try
+                    raise
+                time.sleep(4)
+        rows = (rows or [])[1:]
+    except HttpError as ex:
+        if ex.status < 500 or not ends:
+            raise
+        busy = f"HTTP {ex.status}"
+    except Exception as ex:
+        if not ends:
+            raise
+        busy = friendly_error(ex)
+    if not rows and not ends:
+        raise NotFound("No archived URLs")
+    stamps = sorted(x[0] for x in rows + ends)
+    if rows:
+        r.kv("Archived URLs", len(rows) if len(rows) < 500 else "500+")
     r.kv("First capture", fmt(stamps[0]))
     r.kv("Last capture", fmt(stamps[-1]))
+    if busy:
+        r.message = (f"The Wayback URL index did not answer in time ({busy}); this site is likely too large "
+                     "or archive.org is overloaded. Showing first/last capture of the homepage only.")
     interesting = re.compile(r"\.(zip|rar|7z|exe|dll|msi|apk|ps1|bat|js|php|aspx|jsp|sql|bak|env|cfg|conf|xml|json|pdf|doc[xm]?|xls[xm]?)(\?|$)", re.I)
     hits = [x for x in rows if interesting.search(x[1])]
     for x in hits[:min(10, ctx.max_children)]:
