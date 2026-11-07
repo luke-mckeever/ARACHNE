@@ -92,7 +92,8 @@ class Result:
                 self.tags.append(str(t)[:40])
 
     def link(self, label, url):
-        self.links.append({"label": label, "url": url})
+        if str(url or "").lower().startswith(("http://", "https://")):  # web links only, never javascript: etc.
+            self.links.append({"label": label, "url": url})
 
     def set_verdict(self, verdict, score=None):
         if VERDICT_RANK.get(verdict, 0) >= VERDICT_RANK.get(self.verdict, 0):
