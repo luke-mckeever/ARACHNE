@@ -175,6 +175,14 @@ function initGraph() {
     select(e.target.id(), false); nodeMenu(e.target.id(), e.originalEvent);
   });
   cy.on("cxttap", (e) => { if (e.target === cy) bgMenu(e.originalEvent); });
+  // touch screens: long-press opens the same menus as right-click
+  const touchPt = (e) => { const r = cy.container().getBoundingClientRect(); return { clientX: r.left + e.renderedPosition.x, clientY: r.top + e.renderedPosition.y }; };
+  cy.on("taphold", (e) => {
+    if (e.target === cy) return bgMenu(touchPt(e));
+    if (!e.target.isNode()) return;
+    if (e.target.data("group")) return groupMenu(e.target.id(), touchPt(e));
+    select(e.target.id(), false); nodeMenu(e.target.id(), touchPt(e));
+  });
   cy.on("mouseover", "node", (e) => {
     if (e.target.data("group")) return;
     let nb = e.target.closedNeighborhood();
@@ -445,6 +453,7 @@ function renderCounts() {
   for (const n of S.nodes.values()) { if (n.verdict === "malicious") mal++; else if (n.verdict === "suspicious") sus++; }
   $("#stNodes").textContent = S.nodes.size; $("#stEdges").textContent = S.edges.size;
   $("#stMal").textContent = mal; $("#stSus").textContent = sus;
+  $("#mnavCount").textContent = S.nodes.size || "";
 }
 
 // ------------------------------------------------------------------ left list & filters
@@ -513,10 +522,16 @@ function select(id, center = true) {
   if (S.selected) {
     const el = S.cy.getElementById(S.selected);
     el.select();
-    if (center && S.view === "graph" && el.visible()) S.cy.animate({ center: { eles: el }, duration: 300 });
+    if (center && S.view === "graph" && el.visible()) {
+      if (MOBILE.matches) { // keep the node above the details sheet
+        const rp = el.renderedPosition(), c = S.cy.container();
+        S.cy.animate({ panBy: { x: c.clientWidth / 2 - rp.x, y: c.clientHeight * 0.19 - rp.y }, duration: 300 });
+      } else S.cy.animate({ center: { eles: el }, duration: 300 });
+    }
   }
   $$(".ent.sel").forEach((e) => e.classList.remove("sel"));
   if (S.selected) $(`.ent[data-id="${CSS.escape(S.selected)}"]`)?.classList.add("sel");
+  document.body.classList.toggle("has-sel", !!S.selected);
   renderDetails();
 }
 function tchip(t) { return `<span class="tchip" style="color:${tc(t)};border-color:${hexA(tc(t), 0.45)};background:${hexA(tc(t), 0.1)}">${esc(typeLabel(t))}</span>`; }
@@ -866,6 +881,7 @@ function setView(v) {
   S.view = v;
   $("#main").className = "view-" + v;
   $$("#viewSeg [data-view]").forEach((b) => b.classList.toggle("on", b.dataset.view === v));
+  setPane(v);
   closeMenus();
   if (v === "graph" && S.cy) {
     S.cy.resize();
@@ -1002,7 +1018,18 @@ function menu(items, ev, title) {
   box.classList.add("open");
   const x = Math.min(ev.clientX, innerWidth - box.offsetWidth - 230), y = Math.min(ev.clientY, innerHeight - box.offsetHeight - 10);
   box.style.left = Math.max(4, x) + "px"; box.style.top = Math.max(4, y) + "px";
-  box.onclick = (e) => { const b = e.target.closest("[data-i]"); if (!b) return; closeMenus(); registry[+b.dataset.i](); };
+  box.onclick = (e) => {
+    const sub = e.target.closest(".sub > button"); if (sub) { sub.parentElement.classList.toggle("open"); return; }
+    const b = e.target.closest("[data-i]"); if (!b) return; closeMenus(); registry[+b.dataset.i]();
+  };
+  S.menuAt = Date.now();
+}
+// phones: one pane at a time (indicator list, or the report / graph view) picked from the bottom nav
+const MOBILE = matchMedia("(max-width: 900px)");
+function setPane(p) {
+  document.body.dataset.pane = p === "list" ? "list" : "view";
+  $$("#mnav [data-pane]").forEach((b) => b.classList.toggle("on", b.dataset.pane === (p === "list" ? "list" : S.view)));
+  if (p !== "list" && S.view === "graph" && S.cy) S.cy.resize();
 }
 function closeMenus() { $("#ctxMenu").classList.remove("open"); $("#exportMenu").classList.remove("open"); }
 function nodeMenu(id, ev) {
@@ -1436,7 +1463,7 @@ function bind() {
     if (t === "clear") clearAll();
   };
   $("#left").onclick = (e) => {
-    const ent = e.target.closest(".ent"); if (ent) return select(ent.dataset.id);
+    const ent = e.target.closest(".ent"); if (ent) { select(ent.dataset.id); if (MOBILE.matches) setView(S.view); return; }
     const lg = e.target.closest("[data-lg]");
     if (lg) { const k = lg.dataset.lg; S.listCollapsed.has(k) ? S.listCollapsed.delete(k) : S.listCollapsed.add(k); return renderList(); }
     const gm = e.target.closest("[data-listgroup]");
@@ -1478,7 +1505,12 @@ function bind() {
     if (del) { e.stopPropagation(); await api(`/api/scans/${del.dataset.del}`, { method: "DELETE" }); if (S.scanId === del.dataset.del) resetScan(); return openHistory(); }
     const l = e.target.closest("[data-load]"); if (l) { $("#historyModal").classList.remove("open"); loadScan(l.dataset.load); }
   };
-  document.addEventListener("click", (e) => { if (!e.target.closest(".ctx") && !e.target.closest(".dropdown")) closeMenus(); });
+  document.addEventListener("click", (e) => { if (!e.target.closest(".ctx") && !e.target.closest(".dropdown") && Date.now() - (S.menuAt || 0) > 500) closeMenus(); });
+  $("#mnav").onclick = (e) => { const b = e.target.closest("[data-pane]"); if (!b) return; b.dataset.pane === "list" ? setPane("list") : setView(b.dataset.pane); };
+  $("#sheetClose").onclick = () => select(null);
+  const shortPh = () => { const i = $("#seedInput"); i.dataset.ph ||= i.placeholder; i.placeholder = MOBILE.matches ? "IP, domain, URL, hash, email…" : i.dataset.ph; };
+  MOBILE.addEventListener?.("change", () => { shortPh(); if (S.cy && S.view === "graph") S.cy.resize(); });
+  shortPh();
   $$(".modal").forEach((m) => m.addEventListener("mousedown", (e) => {
     if (e.target === m || e.target.closest("[data-close]")) { m.classList.remove("open"); m.onclose?.(); }
   }));
