@@ -172,24 +172,6 @@ def crtsh(e, ctx, r):
     r.link("crt.sh", f"https://crt.sh/?q={e.value}")
 
 
-@module("hackertarget", "HackerTarget Host Search", types=DOM, provider="hackertarget", rate=10,
-        pivot=False, category="Subdomains", sample="example.com",
-        desc="Subdomain + IP discovery (free tier 50 queries/day).")
-def hackertarget(e, ctx, r):
-    resp = ctx.get("https://api.hackertarget.com/hostsearch/", params={"q": e.value})
-    txt = resp.text().strip()
-    if resp.status != 200 or "API count exceeded" in txt or txt.startswith("error"):
-        raise ModuleError(txt[:120] or f"HTTP {resp.status}")
-    rows = [l.split(",", 1) for l in txt.splitlines() if "," in l]
-    if not rows:
-        raise NotFound("No hosts")
-    r.kv("Hosts found", len(rows))
-    for host, ip in rows[:ctx.max_children]:
-        r.add("domain", host, "subdomain")
-        r.add("ipv4", ip, "resolves_to", via=("domain", host), pivot=False)
-    r.table("Hosts", ["Host", "IP"], rows, limit=200)
-
-
 @module("securitytrails", "SecurityTrails", types=DOM, keys=["securitytrails"], key_required=True,
         rate=20, pivot=False, category="Subdomains", sample="example.com",
         desc="Subdomain enumeration and current DNS from SecurityTrails.")
