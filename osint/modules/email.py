@@ -42,14 +42,12 @@ def email_parse(e, ctx, r):
         r.add("username", base_local, "local_part")
 
 
-@module("gravatar", "Gravatar Profile", types=["email", "username"], keys=["gravatar"], rate=60,
+@module("gravatar", "Gravatar Profile", types=["email", "username"], rate=60,
         category="People", sample="beau@dentedreality.com.au",
         desc="Public Gravatar profile: name, location, verified social accounts and links.")
 def gravatar(e, ctx, r):
     ident = E.gravatar_hash(e.value) if e.type == "email" else e.value
-    k = ctx.key("gravatar")
-    d = ctx.get_json(f"https://api.gravatar.com/v3/profiles/{urllib.parse.quote(ident)}",
-                     headers={"Authorization": f"Bearer {k}"} if k else None)
+    d = ctx.get_json(f"https://api.gravatar.com/v3/profiles/{urllib.parse.quote(ident)}")
     r.data = d
     r.kv("Display name", d.get("display_name"))
     r.kv("Location", d.get("location"))

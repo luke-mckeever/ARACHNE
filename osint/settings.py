@@ -32,8 +32,6 @@ API_KEYS = [
     {"id": "hybrid", "label": "Hybrid Analysis", "url": "https://www.hybrid-analysis.com/my-account?tab=%23api-key-tab"},
     {"id": "nvd", "label": "NVD API key", "url": "https://nvd.nist.gov/developers/request-an-api-key",
      "help": "Optional."},
-    {"id": "gravatar", "label": "Gravatar API key", "url": "https://gravatar.com/developers/applications",
-     "help": "Optional."},
 ]
 
 DEFAULT_NOISE = [
