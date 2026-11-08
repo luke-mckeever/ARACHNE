@@ -313,28 +313,3 @@ def ipqs(e, ctx, r):
     r.score_verdict(d.get("fraud_score"), 85, 75)
     if d.get("host") and d["host"] != e.value:
         r.add("domain", d["host"], "ptr")
-
-
-@module("criminalip", "Criminal IP", types=IP, keys=["criminalip"], key_required=True, rate=30,
-        category="Threat Intel", sample="185.220.101.1", enabled=True,
-        desc="Inbound/outbound risk score, open ports, VPN/proxy/Tor and malicious-activity flags.")
-def criminalip(e, ctx, r):
-    d = ctx.get_json("https://api.criminalip.io/v1/asset/ip/report", params={"ip": e.value},
-                     headers={"x-api-key": ctx.need("criminalip")})
-    r.data = d
-    score = (d.get("score") or {})
-    r.kv("Inbound score", score.get("inbound"))
-    r.kv("Outbound score", score.get("outbound"))
-    issues = d.get("issues") or {}
-    for k, v in issues.items():
-        if v is True:
-            r.tag(k.replace("is_", ""))
-    r.kv("Flags", [k.replace("is_", "") for k, v in issues.items() if v is True])
-    worst = " ".join(str(v).lower() for v in score.values())
-    if "critical" in worst or "dangerous" in worst:
-        r.set_verdict("malicious")
-    elif "moderate" in worst:
-        r.set_verdict("suspicious")
-    elif score:
-        r.set_verdict("clean")
-    r.link("Criminal IP", f"https://www.criminalip.io/asset/report/{e.value}")

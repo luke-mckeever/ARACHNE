@@ -30,7 +30,6 @@ API_KEYS = [
      "help": "Optional - a no-scope token raises rate limits from 60 to 5000/hr."},
     {"id": "gsb", "label": "Google Safe Browsing", "url": "https://developers.google.com/safe-browsing/v4/get-started"},
     {"id": "hybrid", "label": "Hybrid Analysis", "url": "https://www.hybrid-analysis.com/my-account?tab=%23api-key-tab"},
-    {"id": "criminalip", "label": "Criminal IP", "url": "https://www.criminalip.io/mypage/information"},
     {"id": "nvd", "label": "NVD API key", "url": "https://nvd.nist.gov/developers/request-an-api-key",
      "help": "Optional."},
     {"id": "gravatar", "label": "Gravatar API key", "url": "https://gravatar.com/developers/applications",

@@ -48,7 +48,6 @@ window.CFG = {
     { name: "IBM X-Force", types: ["ipv4"], url: "https://exchange.xforce.ibmcloud.com/ip/{value}" },
     { name: "ipinfo", types: ["ipv4", "ipv6", "asn"], url: "https://ipinfo.io/{value}" },
     { name: "Spur", types: ["ipv4"], url: "https://spur.us/context/{value}" },
-    { name: "Criminal IP", types: ["ipv4"], url: "https://www.criminalip.io/asset/report/{value}" },
     { name: "urlscan.io", types: ["ipv4"], url: "https://urlscan.io/search/#ip:%22{value}%22" },
     { name: "ThreatFox", types: ["ipv4", "domain", "url", "hash"], url: "https://threatfox.abuse.ch/browse.php?search=ioc%3A{enc}" },
     { name: "Pulsedive", types: ["ipv4", "domain", "url"], url: "https://pulsedive.com/indicator/?ioc={b64}" },
