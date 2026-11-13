@@ -32,14 +32,6 @@
     </select>
     <input id="seedInput" spellcheck="false" placeholder="Paste an IOC: IP · domain · URL · hash · email · username · ASN · CVE  —  comma-separate for several">
     <span id="detectHint" class="detect-hint"></span>
-    <div class="search-opts">
-      <label class="switch" title="Also look up the related indicators each source finds (OSINT pivoting)">
-        <input type="checkbox" id="autoPivot"><i></i><span>Pivot</span>
-      </label>
-      <label id="depthWrap" title="How many hops to pivot from the scanned IOC">Depth
-        <select id="depthSel"><option>1</option><option>2</option><option>3</option><option>4</option></select>
-      </label>
-    </div>
     <button type="button" id="addBtn" class="btn ghost icon-btn" title="Add IOC(s) to the current scan instead of starting a new one" disabled>
       <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
     <button type="button" id="bulkBtn" class="btn ghost icon-btn" title="Bulk scan: paste or upload a list of IOCs">

@@ -66,8 +66,9 @@ a:hover { border-bottom-color: var(--text); }
 #seedInput::placeholder { color: var(--dim); font-size: 12.5px; }
 .detect-hint { font: 600 10px var(--mono); letter-spacing: .08em; color: var(--muted); text-transform: uppercase; white-space: nowrap; }
 .detect-hint.bad { color: var(--mal); }
-.search-opts { display: flex; align-items: center; gap: 12px; padding: 0 6px; border-left: 1px solid var(--line2); color: var(--muted); font-size: 12px; }
-.search-opts select { background: var(--panel3); border: 1px solid var(--line2); border-radius: 5px; padding: 3px 4px; margin-left: 4px; }
+/* pivoting and the graph only once a scan has finished (body.scan-ready) */
+body:not(.scan-ready) :is(#viewSeg, #mnav [data-pane="graph"], [data-view="graph"], .rep-pivot, .rep-rel [data-scan], [data-act="pivot"], [data-act="deep"]) { display: none !important; }
+body.scan-ready .pivot-wait { display: none; }
 
 .btn {
   display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line2); background: var(--panel2);
@@ -631,8 +632,6 @@ input[type=range] { accent-color: var(--accent); width: 220px; }
   #seedInput::placeholder { font-size: 14px; }
   .detect-hint { display: none; }
   #scanBtn, #stopBtn { order: 3; padding: 9px 14px; }
-  .search-opts { order: 5; border-left: 0; padding: 0 4px; margin-right: auto; gap: 14px; font-size: 13px; }
-  .search-opts select { font-size: 16px; padding: 2px 4px; }
   .switch span { display: inline; }
   #addBtn { order: 6; }
   #bulkBtn { order: 7; }

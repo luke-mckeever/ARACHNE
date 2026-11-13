@@ -348,6 +348,7 @@ function applySearchHL() {
 function resetScan() {
   if (S.es) { S.es.close(); S.es = null; }
   Object.assign(S, { scanId: null, status: "idle", title: "", selected: null, evIdx: 0, logs: [], stats: {}, firstLayout: true });
+  setReady(false);
   for (const k of ["nodes", "edges", "results", "busy"]) S[k].clear();
   S.hiddenNodes.clear(); S.collapsedGroups.clear(); S.pendingNodes = []; S.pendingEdges = [];
   S.cy.elements().remove();
@@ -432,8 +433,15 @@ function addLog(ev) {
   $("#logCount").textContent = S.logs.length;
   $("#logLast").textContent = ev.msg;
 }
+// Pivoting and the graph unlock once the first scan has finished, and stay available until the web is cleared.
+function setReady(on) {
+  S.ready = on;
+  document.body.classList.toggle("scan-ready", on);
+  if (!on && S.view === "graph") setView("report");
+}
 function setStatus(st) {
   S.status = st;
+  if (S.scanId && !S.ready && st !== "idle" && st !== "running" && st !== "stopping") setReady(true);
   const pill = $("#stStatus");
   pill.className = "status-pill " + st; pill.textContent = st.toUpperCase();
   const running = st === "running" || st === "stopping";
@@ -868,6 +876,7 @@ function relatedHTML(n) {
       }).join("") + (items.length > shown.length ? `<div class="msg" style="padding:5px 12px">+${items.length - shown.length} more in the graph</div>` : "") + "</div>";
   }).join("");
   return `<div class="rep-sec"><h3>Related indicators <em>${list.length}</em></h3>
+    ${list.length ? `<div class="msg pivot-wait">Pivoting and the graph become available when the scan finishes.</div>` : ""}
     ${list.length ? `<div class="rep-pivot">${unscanned.length ? `<button class="btn sm" data-scanall="${esc(n.id)}" title="Scan every related indicator listed here">${ICON.pivot}Pivot: scan all ${unscanned.length}</button>` : ""}<button class="btn sm ghost" data-view="graph">${ICON.select}View graph</button></div>${body}`
       : `<div class="msg">${Object.keys(S.results.get(n.id) || {}).length ? "No related indicators were found." : "Related indicators appear here as sources respond."}</div>`}</div>`;
 }
@@ -877,7 +886,7 @@ function manualHTML(n) {
   return `<div class="rep-sec"><h3>Manual lookups <em>${links.length}</em></h3><div class="lookup-grid">${links.map((l) => `<a href="${esc(fillTpl(l.url, n.value))}" target="_blank" rel="noopener noreferrer">${esc(l.name)}${ICON.link}</a>`).join("")}</div></div>`;
 }
 function setView(v) {
-  if (v !== "graph") v = "report";
+  if (v !== "graph" || !S.ready) v = "report";
   S.view = v;
   $("#main").className = "view-" + v;
   $$("#viewSeg [data-view]").forEach((b) => b.classList.toggle("on", b.dataset.view === v));
@@ -925,7 +934,7 @@ function overviewHTML() {
     const enabled = S.meta ? S.meta.modules.filter((m) => (S.settings.modules?.[m.name]?.enabled ?? m.enabled)).length : 0;
     return `<div class="d-body overview"><h3>Ready</h3>
       <dl class="kv"><dt>Modules enabled</dt><dd>${enabled} / ${S.meta?.modules.length || 0}</dd><dt>API keys configured</dt><dd>${keys} / ${S.meta?.api_keys.length || 0}</dd>
-      <dt>Pivoting</dt><dd>${$("#autoPivot").checked ? `on · depth ${$("#depthSel").value}` : "off"}</dd><dt>Node limit</dt><dd>${S.settings?.pivot?.max_nodes}</dd></dl>
+      <dt>Pivoting</dt><dd>from the report, after the scan · deep pivot depth ${S.settings?.pivot?.depth ?? 1}</dd><dt>Node limit</dt><dd>${S.settings?.pivot?.max_nodes}</dd></dl>
       <p class="msg" style="margin-top:14px">Many sources work without keys (DNS, RDAP, crt.sh, Shodan InternetDB, OTX, ip-api, SANS ISC, Mnemonic PDNS, Gravatar, GitHub, username enumeration…). Add keys for VirusTotal, AbuseIPDB, abuse.ch and others to unlock threat-intel verdicts.</p>
       <p style="margin-top:12px"><button class="btn sm" data-open-settings="keys">Configure API keys</button> <button class="btn sm ghost" data-open-settings="modules">Modules</button></p>
       <h3>Tips</h3><div class="msg" style="line-height:1.8">• Double-click a node to pivot on it<br>• Right-click for module menu, lookups &amp; hiding<br>• Paste several indicators separated by commas or new lines<br>• <b>/</b> focus search · <b>F</b> fit · <b>L</b> layout · <b>P</b> pivot selected · <b>Del</b> hide selected · <b>Esc</b> deselect</div></div>`;
@@ -952,6 +961,7 @@ function overviewHTML() {
 
 // ------------------------------------------------------------------ actions
 async function pivot(id, opts = {}) {
+  if (!S.ready) return toast("Pivoting is available once the scan has finished", "warn");
   if (!S.scanId) return;
   const n = S.nodes.get(id); if (!n) return;
   if (!S.meta.types[n.type]?.pivotable) return toast(`${typeLabel(n.type)} nodes are informational`, "warn");
@@ -1161,7 +1171,8 @@ async function startScan(add = false, bulkValue = null) {
     return;
   }
   try {
-    const r = await api("/api/scan", { body: { value, type, overrides: { depth: +$("#depthSel").value, auto: $("#autoPivot").checked } } });
+    // a scan only looks up what was submitted; pivoting happens from the report once it has finished
+    const r = await api("/api/scan", { body: { value, type, overrides: { auto: false } } });
     resetScan();
     S.scanId = r.id; S.created = Date.now() / 1000; S.title = r.seeds.length > 1 ? `Bulk scan (${r.seeds.length} IOCs)` : value;
     history.replaceState(null, "", "#scan=" + r.id);
@@ -1405,7 +1416,6 @@ function bind() {
   $("#bulkText").ondragover = (e) => e.preventDefault();
   $("#bulkText").ondrop = (e) => { if (e.dataTransfer.files[0]) { e.preventDefault(); loadBulkFile(e.dataTransfer.files[0]); } };
   $("#bulkText").onkeydown = (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) runBulk(); };
-  $("#autoPivot").onchange = () => { $("#depthWrap").hidden = !$("#autoPivot").checked; if (!S.scanId) renderDetails(); };
   $("#viewSeg").onclick = (e) => { const b = e.target.closest("[data-view]"); if (b) setView(b.dataset.view); };
   $("#report").onclick = (e) => {
     const t = e.target;
@@ -1537,9 +1547,6 @@ async function init() {
   }
   S.modules = Object.fromEntries(S.meta.modules.map((m) => [m.name, m]));
   $("#typeSel").innerHTML = '<option value="auto">AUTO</option>' + Object.entries(S.meta.types).filter(([, t]) => t.pivotable).map(([k, t]) => `<option value="${k}">${esc(t.label)}</option>`).join("");
-  $("#depthSel").value = String(Math.min(4, Math.max(1, S.settings.pivot?.depth ?? 1)));
-  $("#autoPivot").checked = !!S.settings.pivot?.auto;
-  $("#depthWrap").hidden = !$("#autoPivot").checked;
   if (typeof cytoscape === "undefined") {
     toast("Graph library failed to load (no internet?). Check your connection and reload.", "error", 15000);
     return;
