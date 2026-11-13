@@ -1326,7 +1326,7 @@ function stixPattern(n) {
 // malware families found by the sources linked with "indicates", all wrapped in a report
 function buildStix() {
   const now = new Date().toISOString(), created = new Date((S.created || Date.now() / 1000) * 1000).toISOString();
-  const identity = { type: "identity", spec_version: "2.1", id: `identity--${uuid4()}`, created: now, modified: now, name: "ARACHNE IOC Scanner", identity_class: "system" };
+  const identity = { type: "identity", spec_version: "2.1", id: `identity--${uuid4()}`, created: now, modified: now, name: "ARACHNE", identity_class: "system" };
   const objs = [identity], refs = [], malware = new Map();
   const malwareFor = (name) => {
     if (!malware.has(name)) {
