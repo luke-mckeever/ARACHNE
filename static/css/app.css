@@ -277,6 +277,8 @@ pre.raw { font: 10.5px/1.5 var(--mono); color: var(--text2); background: var(--b
 #logLast { flex: 1; text-align: right; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--dim); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 #logList { display: none; height: 180px; overflow-y: auto; padding: 0 14px 8px; font: 11px/1.6 var(--mono); }
 #logbar.open #logList { display: block; }
+.app-ver { flex: none; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--dim); opacity: .8; }
+.app-ver:empty { display: none; }
 .log-line { display: flex; gap: 10px; color: var(--text2); }
 .log-line time { color: var(--dim); flex: none; }
 .log-line.warn { color: #fcd34d; }

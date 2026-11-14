@@ -113,6 +113,10 @@ It shows up in the UI automatically. To make its key editable in Settings, add t
 - The server binds to localhost and has no authentication, so don't expose it publicly.
 - Only use this for lawful purposes, and stick to each provider's terms of service.
 
+## Versions
+
+ARACHNE uses version numbers like `v2.3.0` (major.minor.patch). The current version is shown at the bottom right of the app, every release is tagged in git, and [CHANGELOG.md](CHANGELOG.md) lists what changed in each one.
+
 ## License
 
 MIT. `osint/cacert.pem` is Mozilla's CA bundle (MPL-2.0).

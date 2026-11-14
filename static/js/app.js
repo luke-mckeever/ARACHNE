@@ -1613,6 +1613,7 @@ async function init() {
     return;
   }
   S.modules = Object.fromEntries(S.meta.modules.map((m) => [m.name, m]));
+  if (S.meta.version) $("#appVersion").textContent = `v${S.meta.version}`;
   $("#typeSel").innerHTML = '<option value="auto">AUTO</option>' + Object.entries(S.meta.types).filter(([, t]) => t.pivotable).map(([k, t]) => `<option value="${k}">${esc(t.label)}</option>`).join("");
   if (typeof cytoscape === "undefined") {
     toast("Graph library failed to load (no internet?). Check your connection and reload.", "error", 15000);
