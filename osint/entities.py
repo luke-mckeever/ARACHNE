@@ -43,14 +43,28 @@ _MULTI_SUFFIX = {
 }
 
 
+# Defanged notation seen in threat reports and feeds: hxxp(s)://, h**p, h[tt]p, fxp://, evil[.]com,
+# evil(.)com, evil{.}com, evil[dot]com, evil\.com, user[@]evil.com, user [at] evil.com, http[:]//, http[://],
+# 2001[:]db8[:][:]1, example.com[/]path. Brackets may hold spaces and be spaced out ("evil [ . ] com").
+_REFANG = (
+    (re.compile(r"\s*[\[({]\s*(?:\.|dot)\s*[\])}]\s*", re.I), "."),
+    (re.compile(r"\s*[\[({]\s*(?:@|at)\s*[\])}]\s*", re.I), "@"),
+    (re.compile(r"[\[({]\s*:\s*/\s*/\s*[\])}]"), "://"),
+    (re.compile(r"[\[({]\s*:\s*[\])}]"), ":"),
+    (re.compile(r"[\[({]\s*/\s*[\])}]"), "/"),
+    (re.compile(r"\\\."), "."),
+)
+_RE_HXXP = re.compile(r"^h(?:xx|\*\*|tt|\[tt\]|\[xx\])p(s?)(?=:)", re.I)
+_RE_FXP = re.compile(r"^fxp(s?)(?=:)", re.I)
+
+
 def refang(s: str) -> str:
     s = s.strip().strip("\"'")
-    s = re.sub(r"^hxxp", "http", s, flags=re.I)
-    s = re.sub(r"^fxp", "ftp", s, flags=re.I)
-    for a, b in (("[.]", "."), ("(.)", "."), ("{.}", "."), ("[dot]", "."), ("(dot)", "."),
-                 ("[@]", "@"), ("(@)", "@"), ("[at]", "@"), ("[:]", ":"), ("[://]", "://")):
-        s = s.replace(a, b)
-    return s
+    for rx, b in _REFANG:
+        s = rx.sub(b, s)
+    s = _RE_HXXP.sub(r"http\1", s)
+    s = _RE_FXP.sub(r"ftp\1", s)
+    return s.strip()
 
 
 def is_ip(v):
@@ -112,7 +126,8 @@ def normalize(etype: str, value):
     """Normalise a value for a given type; returns None when invalid."""
     if value is None:
         return None
-    v = refang(str(value))
+    # names are not defanged: "Example GmbH (AT)" must keep its "(AT)"
+    v = str(value).strip().strip("\"'") if etype in ("org", "malware") else refang(str(value))
     if not v:
         return None
     if etype in ("ipv4", "ipv6"):

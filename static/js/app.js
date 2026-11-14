@@ -22,6 +22,21 @@ function toast(msg, kind = "info", ms = 3200) {
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
 function throttleRAF(fn) { let q = false; return () => { if (q) return; q = true; setTimeout(() => { q = false; fn(); }, 120); }; }
 function copy(text) { navigator.clipboard.writeText(text).then(() => toast("Copied to clipboard"), () => toast("Copy failed", "error")); }
+// defang an IOC so it can't be clicked or resolved by accident when shared: hxxps://evil[.]com/x, 1.2.3[.]4,
+// user[@]evil[.]com, 2001[:]db8[:][:]1. The search box refangs all of these again.
+function defang(v, type) {
+  v = String(v);
+  const dots = (x) => x.replace(/\./g, "[.]");
+  if (type === "url") {
+    const m = /^([a-z][a-z0-9+.\-]*):\/\/([^/?#]*)(.*)$/is.exec(v);
+    return m ? `${m[1].replace(/^http/i, "hxxp").replace(/^ftp/i, "fxp")}://${dots(m[2])}${m[3]}` : v;
+  }
+  if (type === "email") { const i = v.lastIndexOf("@"); return i < 0 ? v : v.slice(0, i) + "[@]" + dots(v.slice(i + 1)); }
+  if (type === "ipv6") return v.replace(/:/g, "[:]");
+  if (type === "ipv4" || type === "domain") return dots(v);
+  return v;
+}
+const defangNode = (n) => defang(n.value, n.type);
 function download(name, data, mime = "application/octet-stream") {
   const blob = data instanceof Blob ? data : new Blob([data], { type: mime });
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click();
@@ -789,6 +804,7 @@ function reportHTML() {
         ${piv ? `<button class="btn sm" data-rescan="${esc(n.id)}" title="Run every enabled source again, skipping the cache">${ICON.redo}Re-scan (skip cache)</button>
         <select class="btn sm" data-runmod="${esc(n.id)}" style="max-width:170px"><option value="">Run one source…</option>${modulesFor(n.type).map((m) => `<option value="${m.name}">${esc(m.label)}</option>`).join("")}</select>` : ""}
         <button class="btn sm ghost" data-copyall title="Copy every IOC in this scan, one per line (C)">${ICON.copy}Copy all IOCs</button>
+        <button class="btn sm ghost" data-copydefanged title="Copy every IOC defanged, e.g. hxxps://evil[.]com, safe to paste into tickets and chats (D)">${ICON.copy}Copy defanged</button>
         <button class="btn sm ghost" data-view="graph" title="Open the pivot graph">${ICON.pivot}Graph</button>
       </div>
     </div>
@@ -822,16 +838,16 @@ function reportHTML() {
 }
 // every indicator in the scan as a plain list, one per line, grouped by type (riskiest first in each type)
 const IOC_ORDER = ["ipv4", "ipv6", "domain", "url", "email", "hash", "asn", "cve", "username", "malware"];
-function allIocs(minScore = null) {
+function allIocs(minScore = null, defanged = false) {
   const nodes = [...S.nodes.values()].filter((n) => IOC_ORDER.includes(n.type) && (minScore == null || (riskOf(n.id).score ?? 0) >= minScore));
   const rank = (n) => riskOf(n.id).score ?? (VRANK[n.verdict] || 0) - 10;
-  return IOC_ORDER.flatMap((t) => nodes.filter((n) => n.type === t).sort((a, b) => (b.root - a.root) || (rank(b) - rank(a)) || a.value.localeCompare(b.value)).map((n) => n.value));
+  return IOC_ORDER.flatMap((t) => nodes.filter((n) => n.type === t).sort((a, b) => (b.root - a.root) || (rank(b) - rank(a)) || a.value.localeCompare(b.value)).map((n) => defanged ? defangNode(n) : n.value));
 }
-function copyIocs(flagged = false) {
+function copyIocs(flagged = false, defanged = false) {
   if (!S.scanId) return toast("Run a scan first", "warn");
-  const v = [...new Set(allIocs(flagged ? 35 : null))];
+  const v = [...new Set(allIocs(flagged ? 35 : null, defanged))];
   if (!v.length) return toast(flagged ? "No IOCs at medium risk or above" : "No IOCs in this scan yet", "warn");
-  navigator.clipboard.writeText(v.join("\n")).then(() => toast(`Copied ${v.length} IOC${v.length === 1 ? "" : "s"}${flagged ? " at medium risk or above" : ""}`), () => toast("Copy failed", "error"));
+  navigator.clipboard.writeText(v.join("\n")).then(() => toast(`Copied ${v.length}${defanged ? " defanged" : ""} IOC${v.length === 1 ? "" : "s"}${flagged ? " at medium risk or above" : ""}`), () => toast("Copy failed", "error"));
 }
 // j / k: step through the IOCs in this scan in the same order as the bar at the top of the report
 function stepIoc(dir) {
@@ -866,6 +882,7 @@ function summaryHTML() {
       <div class="rep-vscore" style="margin-top:6px">${running ? `<span class="spinner"></span> ${running} lookups running · ` : ""}${count("critical") + count("high")} need attention (high or critical risk)</div>
       <div class="d-actions"><button class="btn sm" data-rescanall title="Run every enabled source again on all submitted IOCs, skipping the cache">${ICON.redo}Re-scan all (skip cache)</button>
         <button class="btn sm ghost" data-copyall title="Copy every IOC in this scan, one per line (C)">${ICON.copy}Copy all IOCs</button>
+        <button class="btn sm ghost" data-copydefanged title="Copy every IOC defanged, e.g. hxxps://evil[.]com, safe to paste into tickets and chats (D)">${ICON.copy}Copy defanged</button>
         <button class="btn sm ghost" data-copyflagged title="Copy every IOC rated medium risk or higher (Shift+C)">${ICON.copy}Copy flagged IOCs</button></div>
     </div></div>
     <div class="rep-tiles">${tile("critical", "Critical")}${tile("high", "High")}${tile("medium", "Medium")}${tile("low", "Low")}${tile("clean", "Clean")}${tile("unknown", "Unrated")}</div>
@@ -1083,6 +1100,7 @@ function nodeMenu(id, ev) {
     items.push("sep");
   }
   items.push({ label: "Copy value", icon: ICON.copy, action: () => copy(n.value) });
+  if (defangNode(n) !== n.value) items.push({ label: "Copy defanged", icon: ICON.copy, action: () => copy(defangNode(n)) });
   if (links.length) items.push({ label: "Open in…", icon: ICON.link, sub: links.map((l) => ({ label: l.name, action: () => window.open(fillTpl(l.url, n.value), "_blank", "noopener") })) });
   items.push({ label: "Focus neighbourhood", icon: ICON.focus, action: () => focusNode(id) });
   items.push({ label: "Show only this type", icon: ICON.select, action: () => { S.search = ""; S.hiddenTypes = new Set(Object.keys(CFG.glyph).filter((t) => t !== n.type)); applyFilters(); renderList(); } });
@@ -1100,6 +1118,7 @@ function groupMenu(gid, ev) {
     { label: collapsed ? "Expand group" : "Collapse group", icon: ICON.focus, action: () => toggleGroup(gid) },
     { label: `Pivot all ${ids.length}`, icon: ICON.pivot, action: () => ids.forEach((id) => pivot(id)) },
     { label: "Copy values", icon: ICON.copy, action: () => copy(ids.map((id) => S.nodes.get(id)?.value).filter(Boolean).join("\n")) },
+    { label: "Copy values (defanged)", icon: ICON.copy, action: () => copy(ids.map((id) => S.nodes.get(id)).filter(Boolean).map(defangNode).join("\n")) },
     "sep",
     { label: `Hide all ${ids.length}`, icon: ICON.hide, action: () => { ids.forEach((id) => S.hiddenNodes.add(id)); applyFilters(); renderList(); } },
     { label: "Remove from scan", icon: ICON.trash, action: () => removeNodes(ids) },
@@ -1146,7 +1165,8 @@ function bgMenu(ev) {
 // ------------------------------------------------------------------ bulk scan
 const BULK_MAX = 500;
 function bulkTokens(text) {
-  return [...new Set(String(text || "").split(/[\s,;|"'<>]+/).map((s) => s.trim()).filter(Boolean))];
+  const t = String(text || "").replace(/\s*([\[({]\s*(?:\.|dot|@|at)\s*[\])}])\s*/gi, (m, d) => d.replace(/\s+/g, ""));
+  return [...new Set(t.split(/[\s,;|"'<>]+/).map((s) => s.trim()).filter(Boolean))];
 }
 const bulkPreview = debounce(async () => {
   const toks = bulkTokens($("#bulkText").value), go = $("#bulkGo");
@@ -1257,17 +1277,19 @@ async function doExport(kind) {
     }
     return download(base + "-verdicts.csv", rows.map((r) => r.map(csvCell).join(",")).join("\n"), "text/csv");
   }
-  if (kind === "iocs") {
+  if (kind === "iocs" || kind === "iocsdefanged") {
+    const dv = (n) => kind === "iocsdefanged" ? defangNode(n) : n.value;
     const order = ["ipv4", "ipv6", "domain", "url", "email", "hash", "asn", "cve", "username", "malware"];
     let out = `# ARACHNE IOC export — ${S.title}\n# ${new Date().toISOString()}\n`;
     for (const t of order) {
       const list = nodes.filter((n) => n.type === t).sort((a, b) => (VRANK[b.verdict] || 0) - (VRANK[a.verdict] || 0));
       if (!list.length) continue;
-      out += `\n## ${typeLabel(t)} (${list.length})\n` + list.map((n) => n.value + (n.verdict && n.verdict !== "clean" ? `\t# ${n.verdict}` : "")).join("\n") + "\n";
+      out += `\n## ${typeLabel(t)} (${list.length})\n` + list.map((n) => dv(n) + (n.verdict && n.verdict !== "clean" ? `\t# ${n.verdict}` : "")).join("\n") + "\n";
     }
-    return download(base + "-iocs.txt", out, "text/plain");
+    return download(base + (kind === "iocsdefanged" ? "-iocs-defanged.txt" : "-iocs.txt"), out, "text/plain");
   }
   if (kind === "copyall") return copyIocs();
+  if (kind === "copydefanged") return copyIocs(false, true);
   if (kind === "png") { ensureLaidOut(); return download(base + ".png", S.cy.png({ full: true, scale: 2, bg: "#050506", output: "blob" })); }
   if (kind === "report") return download(base + "-report.html", buildReport(), "text/html");
   if (kind === "pdf") return exportPDF();
@@ -1412,6 +1434,7 @@ function buildStix() {
 }
 
 // ------------------------------------------------------------------ input detection
+const DEFANGED = /^\s*(?:h(?:xx|\*\*|\[tt\]|\[xx\])ps?|fxps?)\b|[\[({]\s*(?:\.|dot|@|at|:|\/|:\/\/)\s*[\])}]|\\\./i;
 const updateDetect = debounce(async () => {
   const v = $("#seedInput").value.trim(), hint = $("#detectHint");
   if (!v || $("#typeSel").value !== "auto") { hint.textContent = ""; hint.className = "detect-hint"; return; }
@@ -1419,6 +1442,7 @@ const updateDetect = debounce(async () => {
     const r = await api("/api/detect", { body: { value: v } });
     hint.className = "detect-hint" + (r.seeds.length ? "" : " bad");
     hint.textContent = r.seeds.length === 1 ? typeLabel(r.seeds[0][0]) : r.seeds.length ? `${r.seeds.length} seeds` : "unrecognised";
+    if (r.seeds.length && DEFANGED.test(v)) { hint.textContent += " · refanged"; hint.title = r.seeds.map(([, x]) => x).join("\n"); } else hint.title = "";
     if (r.invalid.length && r.seeds.length) hint.textContent += ` · ${r.invalid.length} invalid`;
   } catch { /* ignore */ }
 }, 220);
@@ -1468,6 +1492,7 @@ function bind() {
     if (t.closest("[data-summary]")) return select(null);
     if (t.closest("[data-rescanall]")) return rescan(seedNodes().map((n) => n.id));
     if (t.closest("[data-copyall]")) return copyIocs();
+    if (t.closest("[data-copydefanged]")) return copyIocs(false, true);
     if (t.closest("[data-copyflagged]")) {
       const v = summaryRows().filter(({ rk }) => (rk.score ?? 0) >= 35).map(({ n }) => n.value);
       return v.length ? copy(v.join("\n")) : toast("No IOCs at medium risk or above", "warn");
@@ -1563,6 +1588,7 @@ function bind() {
     else if (e.key === "?") openShortcuts();
     else if (e.key === "c") copyIocs();
     else if (e.key === "C") copyIocs(true);
+    else if (e.key === "d") copyIocs(false, true);
     else if (e.key === "b" && shown("#bulkBtn")) openBulk();
     else if (e.key === "r" && shown("#historyBtn")) openHistory();
     else if (e.key === "s") openSettings();
