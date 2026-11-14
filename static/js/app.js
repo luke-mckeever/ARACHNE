@@ -788,6 +788,7 @@ function reportHTML() {
       <div class="d-actions">
         ${piv ? `<button class="btn sm" data-rescan="${esc(n.id)}" title="Run every enabled source again, skipping the cache">${ICON.redo}Re-scan (skip cache)</button>
         <select class="btn sm" data-runmod="${esc(n.id)}" style="max-width:170px"><option value="">Run one source…</option>${modulesFor(n.type).map((m) => `<option value="${m.name}">${esc(m.label)}</option>`).join("")}</select>` : ""}
+        <button class="btn sm ghost" data-copyall title="Copy every IOC in this scan, one per line (C)">${ICON.copy}Copy all IOCs</button>
         <button class="btn sm ghost" data-view="graph" title="Open the pivot graph">${ICON.pivot}Graph</button>
       </div>
     </div>
@@ -819,6 +820,32 @@ function reportHTML() {
 
   return `<div class="rep">${iocBarHTML(n)}${head}${tiles}${table}<div class="rep-cols"><div>${findings}</div><div>${relatedHTML(n)}${manualHTML(n)}</div></div></div>`;
 }
+// every indicator in the scan as a plain list, one per line, grouped by type (riskiest first in each type)
+const IOC_ORDER = ["ipv4", "ipv6", "domain", "url", "email", "hash", "asn", "cve", "username", "malware"];
+function allIocs(minScore = null) {
+  const nodes = [...S.nodes.values()].filter((n) => IOC_ORDER.includes(n.type) && (minScore == null || (riskOf(n.id).score ?? 0) >= minScore));
+  const rank = (n) => riskOf(n.id).score ?? (VRANK[n.verdict] || 0) - 10;
+  return IOC_ORDER.flatMap((t) => nodes.filter((n) => n.type === t).sort((a, b) => (b.root - a.root) || (rank(b) - rank(a)) || a.value.localeCompare(b.value)).map((n) => n.value));
+}
+function copyIocs(flagged = false) {
+  if (!S.scanId) return toast("Run a scan first", "warn");
+  const v = [...new Set(allIocs(flagged ? 35 : null))];
+  if (!v.length) return toast(flagged ? "No IOCs at medium risk or above" : "No IOCs in this scan yet", "warn");
+  navigator.clipboard.writeText(v.join("\n")).then(() => toast(`Copied ${v.length} IOC${v.length === 1 ? "" : "s"}${flagged ? " at medium risk or above" : ""}`), () => toast("Copy failed", "error"));
+}
+// j / k: step through the IOCs in this scan in the same order as the bar at the top of the report
+function stepIoc(dir) {
+  const list = [...S.nodes.values()].filter((x) => x.root || S.results.has(x.id) || S.busy.get(x.id)?.size)
+    .sort((a, c) => (c.root - a.root) || ((riskOf(c.id).score ?? -1) - (riskOf(a.id).score ?? -1)));
+  if (!list.length) return;
+  const i = list.findIndex((x) => x.id === S.selected);
+  const next = list[(i < 0 ? (dir > 0 ? 0 : list.length - 1) : (i + dir + list.length) % list.length)];
+  select(next.id);
+  if (S.view !== "report" && !MOBILE.matches) setView("report");
+}
+const shown = (sel) => !!$(sel)?.offsetParent; // false when a button is hidden (e.g. turned off for the site)
+function openShortcuts() { $("#keysModal").classList.add("open"); }
+
 // combined triage report for a bulk scan: every submitted IOC, riskiest first
 function summaryRows() {
   const rows = seedNodes().map((n) => ({ n, rk: riskOf(n.id), busy: S.busy.get(n.id)?.size || 0, fr: freshness(S.results.get(n.id)) }));
@@ -838,7 +865,8 @@ function summaryHTML() {
       <div class="d-val rep-val"><span>${seeds.length} IOCs</span></div>
       <div class="rep-vscore" style="margin-top:6px">${running ? `<span class="spinner"></span> ${running} lookups running · ` : ""}${count("critical") + count("high")} need attention (high or critical risk)</div>
       <div class="d-actions"><button class="btn sm" data-rescanall title="Run every enabled source again on all submitted IOCs, skipping the cache">${ICON.redo}Re-scan all (skip cache)</button>
-        <button class="btn sm ghost" data-copyflagged title="Copy every IOC rated medium risk or higher">${ICON.copy}Copy flagged IOCs</button></div>
+        <button class="btn sm ghost" data-copyall title="Copy every IOC in this scan, one per line (C)">${ICON.copy}Copy all IOCs</button>
+        <button class="btn sm ghost" data-copyflagged title="Copy every IOC rated medium risk or higher (Shift+C)">${ICON.copy}Copy flagged IOCs</button></div>
     </div></div>
     <div class="rep-tiles">${tile("critical", "Critical")}${tile("high", "High")}${tile("medium", "Medium")}${tile("low", "Low")}${tile("clean", "Clean")}${tile("unknown", "Unrated")}</div>
     <div class="rep-sec"><h3>Triage <em>${shown.length}${shown.length !== seeds.length ? ` of ${seeds.length}` : ""}</em>
@@ -1239,6 +1267,7 @@ async function doExport(kind) {
     }
     return download(base + "-iocs.txt", out, "text/plain");
   }
+  if (kind === "copyall") return copyIocs();
   if (kind === "png") { ensureLaidOut(); return download(base + ".png", S.cy.png({ full: true, scale: 2, bg: "#050506", output: "blob" })); }
   if (kind === "report") return download(base + "-report.html", buildReport(), "text/html");
   if (kind === "pdf") return exportPDF();
@@ -1402,6 +1431,7 @@ function bind() {
   $("#seedInput").oninput = updateDetect;
   $("#typeSel").onchange = updateDetect;
   $("#historyBtn").onclick = openHistory;
+  $("#keysBtn").onclick = openShortcuts;
   $("#settingsBtn").onclick = () => openSettings();
   $("#emptySettings").onclick = (e) => { e.preventDefault(); openSettings("keys"); };
   $("#exportBtn").onclick = (e) => { e.stopPropagation(); $("#exportMenu").classList.toggle("open"); };
@@ -1437,6 +1467,7 @@ function bind() {
     const tg = t.closest("[data-toggle]"); if (tg) { const m = tg.dataset.toggle; S.collapsed.has(m) ? S.collapsed.delete(m) : S.collapsed.add(m); tg.parentElement.classList.toggle("collapsed"); return; }
     if (t.closest("[data-summary]")) return select(null);
     if (t.closest("[data-rescanall]")) return rescan(seedNodes().map((n) => n.id));
+    if (t.closest("[data-copyall]")) return copyIocs();
     if (t.closest("[data-copyflagged]")) {
       const v = summaryRows().filter(({ rk }) => (rk.score ?? 0) >= 35).map(({ n }) => n.value);
       return v.length ? copy(v.join("\n")) : toast("No IOCs at medium risk or above", "warn");
@@ -1527,8 +1558,18 @@ function bind() {
   document.addEventListener("keydown", (e) => {
     const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName);
     if (e.key === "Escape") { closeMenus(); const open = $(".modal.open"); if (open) { open.classList.remove("open"); open.onclose?.(); } else if (!typing) select(null); return; }
-    if (typing || $(".modal.open")) return;
+    if (typing || $(".modal.open") || e.ctrlKey || e.metaKey || e.altKey || e.repeat) return; // leave Ctrl+C, Ctrl+V etc. alone
     if (e.key === "/") { e.preventDefault(); $("#seedInput").focus(); }
+    else if (e.key === "?") openShortcuts();
+    else if (e.key === "c") copyIocs();
+    else if (e.key === "C") copyIocs(true);
+    else if (e.key === "b" && shown("#bulkBtn")) openBulk();
+    else if (e.key === "r" && shown("#historyBtn")) openHistory();
+    else if (e.key === "s") openSettings();
+    else if (e.key === "e" && shown("#exportBtn")) { closeMenus(); $("#exportMenu").classList.add("open"); S.menuAt = Date.now(); }
+    else if (e.key === "a" && seedNodes().length > 1) { select(null); setView("report"); }
+    else if (e.key === "j") stepIoc(1);
+    else if (e.key === "k") stepIoc(-1);
     else if (e.key === "v") setView(S.view === "graph" ? "report" : "graph");
     else if (e.key === "f" && S.view === "graph") S.cy.animate({ fit: { eles: S.cy.elements(":visible"), padding: 50 }, duration: 350 });
     else if (e.key === "l" && S.view === "graph") runLayout({ fit: true, randomize: true });

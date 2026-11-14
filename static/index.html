@@ -34,7 +34,7 @@
     <span id="detectHint" class="detect-hint"></span>
     <button type="button" id="addBtn" class="btn ghost icon-btn" title="Add IOC(s) to the current scan instead of starting a new one" disabled>
       <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
-    <button type="button" id="bulkBtn" class="btn ghost icon-btn" title="Bulk scan: paste or upload a list of IOCs">
+    <button type="button" id="bulkBtn" class="btn ghost icon-btn" title="Bulk scan: paste or upload a list of IOCs (B)">
       <svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg></button>
     <button id="scanBtn" class="btn primary"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>Scan</button>
     <button type="button" id="stopBtn" class="btn danger" hidden><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>Stop</button>
@@ -45,10 +45,12 @@
       <button data-view="report" class="on"><svg viewBox="0 0 24 24"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M9 13h6M9 17h6M9 9h2"/></svg>Report</button>
       <button data-view="graph"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="4" cy="5" r="2"/><circle cx="20" cy="5" r="2"/><circle cx="12" cy="21" r="2"/><path d="M6 6l4 4M18 6l-4 4M12 15v4"/></svg>Graph</button>
     </div>
-    <button class="icon-btn" id="historyBtn" title="Scan history"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 3"/></svg></button>
+    <button class="icon-btn keys-btn" id="keysBtn" title="Keyboard shortcuts (?)"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg></button>
+    <button class="icon-btn" id="historyBtn" title="Scan history (R)"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 3"/></svg></button>
     <div class="dropdown">
-      <button class="icon-btn" id="exportBtn" title="Export"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v3h16v-3"/></svg></button>
+      <button class="icon-btn" id="exportBtn" title="Export (E)"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v3h16v-3"/></svg></button>
       <div class="menu" id="exportMenu">
+        <button data-export="copyall">Copy all IOCs</button>
         <button data-export="pdf">Scan report (PDF)</button>
         <button data-export="report">Scan report (HTML)</button>
         <button data-export="stix">STIX 2.1 bundle</button>
@@ -142,6 +144,31 @@
   <div class="modal-box sm">
     <div class="modal-h"><h2>Scan history</h2><button class="icon-btn" data-close><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <div class="modal-b" id="historyList"></div>
+  </div>
+</div>
+
+<div class="modal" id="keysModal">
+  <div class="modal-box xs">
+    <div class="modal-h"><h2>Keyboard shortcuts</h2><button class="icon-btn" data-close><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="modal-b">
+      <dl class="keys" id="keysList">
+        <dt><kbd>/</kbd></dt><dd>Type an IOC to scan</dd>
+        <dt><kbd>B</kbd></dt><dd>Bulk scan</dd>
+        <dt><kbd>C</kbd></dt><dd>Copy all IOCs in the scan</dd>
+        <dt><kbd>Shift</kbd> <kbd>C</kbd></dt><dd>Copy IOCs at medium risk and above</dd>
+        <dt><kbd>J</kbd> <kbd>K</kbd></dt><dd>Next / previous IOC in the scan</dd>
+        <dt><kbd>A</kbd></dt><dd>Summary of all submitted IOCs (bulk scans)</dd>
+        <dt><kbd>V</kbd></dt><dd>Switch between report and graph</dd>
+        <dt><kbd>P</kbd></dt><dd>Pivot on the selected indicator</dd>
+        <dt><kbd>H</kbd></dt><dd>Hide the selected indicator</dd>
+        <dt><kbd>F</kbd> <kbd>L</kbd></dt><dd>Graph: fit to screen / re-run layout</dd>
+        <dt><kbd>E</kbd></dt><dd>Export menu</dd>
+        <dt><kbd>R</kbd></dt><dd>Recent scans (history)</dd>
+        <dt><kbd>S</kbd></dt><dd>Settings</dd>
+        <dt><kbd>Esc</kbd></dt><dd>Close a dialog or clear the selection</dd>
+        <dt><kbd>?</kbd></dt><dd>Show this list</dd>
+      </dl>
+    </div>
   </div>
 </div>
 
