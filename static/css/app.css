@@ -134,6 +134,33 @@ body.scan-ready .pivot-wait { display: none; }
 .status-pill.stopped, .status-pill.stopping { color: var(--sus); }
 @keyframes blink { 50% { opacity: .55; } }
 
+/* collapsible side panel (desktop): a slim rail with the key counts, state kept in localStorage */
+.runline .left-toggle { margin-left: 6px; min-width: 24px; height: 22px; padding: 0 3px; }
+.runline .left-toggle svg { width: 15px; height: 15px; }
+.runline #stStatus { margin-left: auto; }
+.left-rail { display: none; }
+@media (min-width: 901px) {
+  body.left-min { --left-w: 46px; }
+  body.left-min #left { padding: 0; }
+  body.left-min #left > :not(.left-rail) { display: none !important; }
+  body.left-min .left-rail {
+    display: flex; flex-direction: column; align-items: center; gap: 8px; flex: 1; width: 100%; padding: 12px 0;
+    border: 0; background: transparent; color: var(--text2); cursor: pointer; font: inherit;
+  }
+  body.left-min .left-rail:hover { background: var(--bg2); }
+  .rail-open { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 7px; border: 1px solid var(--line2); margin-bottom: 4px; }
+  .left-rail:hover .rail-open { color: var(--text); border-color: var(--accent); }
+  .rail-open svg { width: 16px; height: 16px; }
+  .rail-stat b { display: block; min-width: 32px; padding: 4px 2px; border-radius: 6px; background: var(--bg2); border: 1px solid var(--line); font: 600 11.5px/1.2 var(--mono); text-align: center; color: var(--text); }
+  .rail-stat.mal b { color: var(--mal); }
+  .rail-stat.sus b { color: var(--sus); }
+  .rail-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--panel3); margin-top: 2px; }
+  .rail-dot.running { background: var(--text); animation: blink 1.4s infinite; }
+  .rail-dot.done { background: var(--ok); }
+  .rail-dot.stopped, .rail-dot.stopping { background: var(--sus); }
+}
+@media (max-width: 900px) { .runline .left-toggle { display: none; } }
+
 .section-h { font: 600 10px var(--mono); letter-spacing: .14em; color: var(--dim); text-transform: uppercase; margin: 12px 2px 7px; }
 .chips { display: flex; flex-wrap: wrap; gap: 5px; }
 .chip {

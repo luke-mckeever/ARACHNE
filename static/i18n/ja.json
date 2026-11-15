@@ -532,5 +532,9 @@
 "• Paste several indicators separated by commas or new lines": "• 複数の指標をカンマか改行で区切って貼り付け",
 "• Right-click for module menu, lookups & hiding": "• 右クリックでモジュールメニュー、照会、非表示",
 "…and {n} more (filter by type to see them)": "…ほか {n} 件（種類で絞り込むと表示されます）",
-"⚠ Active modules (HTTP Probe) connect directly to the target from your IP. Leave off for passive-only OSINT.": "⚠ アクティブモジュール（HTTP Probe）はあなたの IP から対象に直接接続します。パッシブな OSINT だけなら オフのままにしてください。"
+"⚠ Active modules (HTTP Probe) connect directly to the target from your IP. Leave off for passive-only OSINT.": "⚠ アクティブモジュール（HTTP Probe）はあなたの IP から対象に直接接続します。パッシブな OSINT だけなら オフのままにしてください。",
+"Hide side panel (M)": "サイドパネルを隠す (M)",
+"Show side panel (M)": "サイドパネルを表示 (M)",
+"Hide / show the side panel": "サイドパネルの表示 / 非表示",
+"Scan status": "スキャンの状態"
 }

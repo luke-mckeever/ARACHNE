@@ -8,6 +8,11 @@ All notable changes to ARACHNE. Versions follow [Semantic Versioning](https://se
 
 Each release is tagged in git as `vX.Y.Z`. The running version is shown at the bottom right of the app and printed when the server starts.
 
+## [2.8.0] - 2026-11-15
+
+### Added
+- **Hide the side panel**: the left panel (counts, filters and indicator list) can be folded away with the « button next to the scan status, or the **M** key. It shrinks to a slim rail that still shows the indicator, malicious and suspicious counts and the scan status; click the rail (or press M) to bring the panel back. The choice is remembered in this browser. Phones are unchanged (they already use the bottom bar).
+
 ## [2.7.1] - 2026-11-15
 
 ### Fixed (phones and narrow screens)

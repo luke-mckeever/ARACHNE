@@ -459,6 +459,7 @@ function setStatus(st) {
   if (S.scanId && !S.ready && st !== "idle" && st !== "running" && st !== "stopping") setReady(true);
   const pill = $("#stStatus");
   pill.className = "status-pill " + st; pill.textContent = st.toUpperCase();
+  $("#rlStatus").className = "rail-dot " + st;
   const running = st === "running" || st === "stopping";
   $("#stopBtn").hidden = !running;
   $("#progress").classList.toggle("running", running);
@@ -476,6 +477,7 @@ function renderCounts() {
   for (const n of S.nodes.values()) { if (n.verdict === "malicious") mal++; else if (n.verdict === "suspicious") sus++; }
   $("#stNodes").textContent = S.nodes.size; $("#stEdges").textContent = S.edges.size;
   $("#stMal").textContent = mal; $("#stSus").textContent = sus;
+  $("#rlNodes").textContent = S.nodes.size; $("#rlMal").textContent = mal; $("#rlSus").textContent = sus;
   $("#mnavCount").textContent = S.nodes.size || "";
 }
 
@@ -1091,6 +1093,15 @@ function setPane(p) {
   $$("#mnav [data-pane]").forEach((b) => b.classList.toggle("on", b.dataset.pane === (p === "list" ? "list" : S.view)));
   if (p !== "list" && S.view === "graph" && S.cy) S.cy.resize();
 }
+// desktop side panel: hide it down to a slim rail (remembered in this browser); phones use the bottom nav instead
+function setLeftMin(on, save = true) {
+  document.body.classList.toggle("left-min", on);
+  $("#leftHide").setAttribute("aria-expanded", String(!on));
+  $("#leftShow").setAttribute("aria-expanded", String(!on));
+  if (save) { try { localStorage.setItem("arachne.leftPanel", on ? "min" : "open"); } catch {} }
+  if (S.cy && S.view === "graph") { S.cy.resize(); }
+}
+function toggleLeft() { if (!MOBILE.matches) setLeftMin(!document.body.classList.contains("left-min")); }
 function closeMenus() { $("#ctxMenu").classList.remove("open"); $("#exportMenu").classList.remove("open"); }
 function nodeMenu(id, ev) {
   const n = S.nodes.get(id); if (!n) return;
@@ -1592,6 +1603,9 @@ function bind() {
   document.addEventListener("click", (e) => { if (!e.target.closest(".ctx") && !e.target.closest(".dropdown") && Date.now() - (S.menuAt || 0) > 500) closeMenus(); });
   $("#mnav").onclick = (e) => { const b = e.target.closest("[data-pane]"); if (!b) return; b.dataset.pane === "list" ? setPane("list") : setView(b.dataset.pane); };
   $("#sheetClose").onclick = () => select(null);
+  $("#leftHide").onclick = () => setLeftMin(true);
+  $("#leftShow").onclick = () => setLeftMin(false);
+  try { if (localStorage.getItem("arachne.leftPanel") === "min") setLeftMin(true, false); } catch {}
   const shortPh = () => { const i = $("#seedInput"); i.dataset.ph ||= i.placeholder; i.placeholder = MOBILE.matches ? "IP, domain, URL, hash, email…" : i.dataset.ph; };
   MOBILE.addEventListener?.("change", () => { shortPh(); if (S.cy && S.view === "graph") S.cy.resize(); });
   shortPh();
@@ -1611,6 +1625,7 @@ function bind() {
     else if (e.key === "x" && shown("#bulkBtn")) openExtract();
     else if (e.key === "r" && shown("#historyBtn")) openHistory();
     else if (e.key === "s") openSettings();
+    else if (e.key === "m") toggleLeft();
     else if (e.key === "e" && shown("#exportBtn")) { closeMenus(); $("#exportMenu").classList.add("open"); S.menuAt = Date.now(); }
     else if (e.key === "a" && seedNodes().length > 1) { select(null); setView("report"); }
     else if (e.key === "j") stepIoc(1);

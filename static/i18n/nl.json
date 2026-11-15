@@ -532,5 +532,9 @@
 "• Paste several indicators separated by commas or new lines": "• Plak meerdere indicatoren, gescheiden door komma's of nieuwe regels",
 "• Right-click for module menu, lookups & hiding": "• Rechtsklik voor het modulemenu, zoekacties en verbergen",
 "…and {n} more (filter by type to see them)": "…en nog {n} (filter op type om ze te zien)",
-"⚠ Active modules (HTTP Probe) connect directly to the target from your IP. Leave off for passive-only OSINT.": "⚠ Actieve modules (HTTP Probe) maken vanaf je IP direct verbinding met het doel. Laat uit voor puur passieve OSINT."
+"⚠ Active modules (HTTP Probe) connect directly to the target from your IP. Leave off for passive-only OSINT.": "⚠ Actieve modules (HTTP Probe) maken vanaf je IP direct verbinding met het doel. Laat uit voor puur passieve OSINT.",
+"Hide side panel (M)": "Zijpaneel verbergen (M)",
+"Show side panel (M)": "Zijpaneel tonen (M)",
+"Hide / show the side panel": "Zijpaneel verbergen / tonen",
+"Scan status": "Scanstatus"
 }

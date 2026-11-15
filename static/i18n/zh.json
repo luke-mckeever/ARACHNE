@@ -532,5 +532,9 @@
 "• Paste several indicators separated by commas or new lines": "• 粘贴多个指标，用逗号或换行分隔",
 "• Right-click for module menu, lookups & hiding": "• 右键单击打开模块菜单、查询和隐藏",
 "…and {n} more (filter by type to see them)": "…还有 {n} 个（按类型筛选以查看）",
-"⚠ Active modules (HTTP Probe) connect directly to the target from your IP. Leave off for passive-only OSINT.": "⚠ 主动模块（HTTP Probe）会从你的 IP 直接连接目标。若只做被动 OSINT，请保持关闭。"
+"⚠ Active modules (HTTP Probe) connect directly to the target from your IP. Leave off for passive-only OSINT.": "⚠ 主动模块（HTTP Probe）会从你的 IP 直接连接目标。若只做被动 OSINT，请保持关闭。",
+"Hide side panel (M)": "隐藏侧边栏 (M)",
+"Show side panel (M)": "显示侧边栏 (M)",
+"Hide / show the side panel": "隐藏 / 显示侧边栏",
+"Scan status": "扫描状态"
 }

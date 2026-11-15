@@ -532,5 +532,9 @@
 "• Paste several indicators separated by commas or new lines": "• 여러 지표를 쉼표나 줄바꿈으로 구분해 붙여넣기",
 "• Right-click for module menu, lookups & hiding": "• 마우스 오른쪽 클릭으로 모듈 메뉴, 조회, 숨기기",
 "…and {n} more (filter by type to see them)": "…외 {n}개(유형으로 필터링해 보기)",
-"⚠ Active modules (HTTP Probe) connect directly to the target from your IP. Leave off for passive-only OSINT.": "⚠ 능동 모듈(HTTP Probe)은 내 IP에서 대상에 직접 연결합니다. 수동 OSINT만 하려면 꺼 두세요."
+"⚠ Active modules (HTTP Probe) connect directly to the target from your IP. Leave off for passive-only OSINT.": "⚠ 능동 모듈(HTTP Probe)은 내 IP에서 대상에 직접 연결합니다. 수동 OSINT만 하려면 꺼 두세요.",
+"Hide side panel (M)": "사이드 패널 숨기기 (M)",
+"Show side panel (M)": "사이드 패널 표시 (M)",
+"Hide / show the side panel": "사이드 패널 숨기기 / 표시",
+"Scan status": "스캔 상태"
 }

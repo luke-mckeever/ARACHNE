@@ -532,5 +532,9 @@
 "• Paste several indicators separated by commas or new lines": "• Mehrere Indikatoren durch Kommas oder Zeilenumbrüche getrennt einfügen",
 "• Right-click for module menu, lookups & hiding": "• Rechtsklick für Modulmenü, Abfragen und Ausblenden",
 "…and {n} more (filter by type to see them)": "…und {n} weitere (nach Typ filtern, um sie zu sehen)",
-"⚠ Active modules (HTTP Probe) connect directly to the target from your IP. Leave off for passive-only OSINT.": "⚠ Aktive Module (HTTP Probe) verbinden sich direkt von Ihrer IP mit dem Ziel. Für rein passives OSINT ausgeschaltet lassen."
+"⚠ Active modules (HTTP Probe) connect directly to the target from your IP. Leave off for passive-only OSINT.": "⚠ Aktive Module (HTTP Probe) verbinden sich direkt von Ihrer IP mit dem Ziel. Für rein passives OSINT ausgeschaltet lassen.",
+"Hide side panel (M)": "Seitenleiste ausblenden (M)",
+"Show side panel (M)": "Seitenleiste einblenden (M)",
+"Hide / show the side panel": "Seitenleiste aus-/einblenden",
+"Scan status": "Scan-Status"
 }
