@@ -8,7 +8,8 @@ Run it now and then (MITRE releases ATT&CK twice a year) and commit the new JSON
 downloads these sources; it only reads the file this writes.
 
 Sources (all allow commercial use; see "about" in the output and the README):
-  - MITRE ATT&CK Enterprise (STIX 2.1): techniques, tactics, groups, software, campaigns and how they link.
+  - MITRE ATT&CK Enterprise (STIX 2.1): techniques, tactics, groups, software, campaigns and how they link,
+    plus the mitigations, detection strategies and log sources (data components) for each technique.
     (c) The MITRE Corporation, royalty-free licence for research, development and commercial use.
   - MISP Galaxy threat-actor cluster: extra actors, country, suspected sponsor, victims, sectors, references.
     CC0 1.0 (or BSD 2-Clause).
@@ -92,6 +93,7 @@ def build(src_dir):
         tactics.append([t["x_mitre_shortname"], ext_id(t), t["name"]])
 
     techniques, groups, software, campaigns = {}, {}, {}, {}
+    mitigations, detections, datacomps = {}, {}, {}
     sid = {}  # stix id -> ATT&CK id
     for o in stix:
         if not live(o):
@@ -112,6 +114,12 @@ def build(src_dir):
             software[eid] = {"n": o["name"], "k": o["type"], "a": [a for a in o.get("x_mitre_aliases") or [] if a != o["name"]],
                              "d": clean(o.get("description"), 900), "pl": o.get("x_mitre_platforms") or [],
                              "t": [], "g": [], "c": [], "created": day(o.get("created")), "modified": day(o.get("modified"))}
+        elif o["type"] == "course-of-action":
+            mitigations[eid] = {"n": o["name"], "d": clean(o.get("description"), 360), "t": []}
+        elif o["type"] == "x-mitre-detection-strategy":
+            detections[eid] = {"n": o["name"], "an": o.get("x_mitre_analytic_refs") or []}
+        elif o["type"] == "x-mitre-data-component":
+            datacomps[eid] = {"n": o["name"]}
         elif o["type"] == "campaign":
             campaigns[eid] = {"n": o["name"], "a": [a for a in o.get("aliases") or [] if a != o["name"]],
                               "d": clean(o.get("description"), 1200), "first": day(o.get("first_seen")),
@@ -142,9 +150,40 @@ def build(src_dir):
                 elif s in campaigns:
                     add(campaigns[s]["s"], t)
                     add(software[t]["c"], s)
+        elif rel == "mitigates" and s in mitigations and t in techniques:
+            add(mitigations[s]["t"], t)
+            add(techniques[t].setdefault("m", []), s)
+        elif rel == "detects" and s in detections and t in techniques:
+            add(techniques[t].setdefault("det", []), s)
         elif rel == "attributed-to" and s in campaigns and t in groups:
             add(campaigns[s]["g"], t)
             add(groups[t]["c"], s)
+    # detection strategy -> analytics -> the log sources (data components) they read; per technique, the log
+    # sources that can show it. Analytics have no ATT&CK ID of their own, so they are looked up by STIX id.
+    analytics = {o["id"]: o for o in stix if o["type"] == "x-mitre-analytic" and live(o)}
+    for det in detections.values():
+        dcs = []
+        for a in det.pop("an"):
+            for ls in (analytics.get(a) or {}).get("x_mitre_log_source_references") or []:
+                dc = sid.get(ls.get("x_mitre_data_component_ref"))
+                if dc and dc not in dcs:
+                    dcs.append(dc)
+        det["dc"] = dcs
+    for t in techniques.values():
+        dcs = []
+        for d in t.get("det") or []:
+            for dc in detections[d]["dc"]:
+                if dc not in dcs:
+                    dcs.append(dc)
+        if dcs:
+            t["dc"] = dcs
+    for d in detections.values():
+        d.pop("dc")
+    mitigations = {k: v for k, v in mitigations.items() if v["t"]}
+    detections = {k: v for k, v in detections.items() if any(k in (t.get("det") or []) for t in techniques.values())}
+    used_dc = {dc for t in techniques.values() for dc in t.get("dc") or []}
+    datacomps = {k: v for k, v in datacomps.items() if k in used_dc}
+
     # software a group used in its campaigns counts as used by that group too
     for cid, c in campaigns.items():
         for g in c["g"]:
@@ -239,7 +278,8 @@ def build(src_dir):
         "attack_version": coll.get("x_mitre_version"),
         "counts": {"techniques": len(techniques), "attack_groups": sum(1 for g in groups.values() if g["src"] == "attack"),
                    "misp_actors": sum(1 for g in groups.values() if g["src"] == "misp"), "software": len(software),
-                   "campaigns": len(campaigns), "families": len(families)},
+                   "campaigns": len(campaigns), "families": len(families), "mitigations": len(mitigations),
+                   "detections": len(detections), "data_components": len(datacomps)},
         "sources": [
             {"name": "MITRE ATT&CK Enterprise", "url": "https://attack.mitre.org/", "licence": "MITRE ATT&CK Terms of Use (royalty-free, commercial use allowed)", "notice": ATTACK_NOTICE},
             {"name": "MISP Galaxy (threat-actor cluster)", "url": "https://github.com/MISP/misp-galaxy", "licence": "CC0 1.0 / BSD 2-Clause"},
@@ -247,7 +287,8 @@ def build(src_dir):
         ],
     }
     return {"about": about, "tactics": tactics, "techniques": techniques, "groups": groups, "software": software,
-            "campaigns": campaigns, "families": families}
+            "campaigns": campaigns, "families": families, "mitigations": mitigations, "detections": detections,
+            "datacomps": datacomps}
 
 
 def main():

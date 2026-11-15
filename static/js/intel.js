@@ -9,7 +9,9 @@
   const KIND_TYPE = { groups: "actor", software: "malware", campaigns: "campaign", techniques: "technique", family: "malware" };
   let KB = null, loading = null, failed = null;
   const t_ = (s, v) => (typeof window.t === "function" ? window.t(s, v) : s);
-  const view = { tab: "scan", stack: [], q: "", lib: "groups", showLeads: false };
+  const view = { tab: "scan", stack: [], showLeads: false, lens: "all" };
+  // the threat library is a window of its own (top bar, key T): reference data, not tied to the scan
+  const lib = { stack: [], q: "", kind: "groups" };
   const SHIELD_SVG = '<svg viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg>';
 
   const norm = (s) => String(s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -51,6 +53,7 @@
   function refresh() {
     try { renderDetails(); } catch { /* app not ready */ }
     if (S.view === "shield") render();
+    if ($("#libModal")?.classList.contains("open")) renderLib();
   }
 
   // ------------------------------------------------------------ matching (same rules as osint/modules/attack.py)
@@ -121,20 +124,20 @@
   const listChips = (kind, ids, max = 40) => ids.length ? ids.slice(0, max).map((id) => chip(ref(kind, id))).join("") + (ids.length > max ? `<span class="msg"> +${ids.length - max} more</span>` : "") : '<span class="msg">None recorded</span>';
   const sortBy = (kind, ids) => [...ids].sort((a, b) => (KB[kind][a]?.n || a).localeCompare(KB[kind][b]?.n || b));
 
-  function matrixHTML(counts, { scale = null, title = "", observed = null } = {}) {
+  function matrixHTML(counts, { scale = null, title = "", observed = null, mark = "reported for these IOCs", cls = null } = {}) {
     // counts: Map technique id -> number (or Set of reasons)
     const byTac = new Map(KB.tactics.map(([s]) => [s, []]));
     for (const [t, v] of counts) for (const ta of KB.techniques[t]?.ta || []) byTac.get(ta)?.push([t, typeof v === "number" ? v : v.size, v]);
     const max = scale || Math.max(1, ...[...counts.values()].map((v) => typeof v === "number" ? v : v.size));
-    return `<div class="ix-matrix" translate="no" ${title ? `aria-label="${esc(title)}"` : ""}>${KB.tactics.map(([s, , name]) => {
+    return `<div class="ix-mxwrap" tabindex="0"><div class="ix-matrix" translate="no" ${title ? `aria-label="${esc(title)}"` : ""}>${KB.tactics.map(([s, , name]) => {
       const cells = byTac.get(s).sort((a, b) => (observed ? observed.has(b[0]) - observed.has(a[0]) : 0) || b[1] - a[1] || a[0].localeCompare(b[0]));
       return `<div class="mcol ${cells.length ? "on" : ""}"><div class="mhead"><b>${esc(name)}</b><span>${cells.length || ""}</span></div>${cells.map(([t, n, v]) => {
         const lvl = n >= 3 && n / max > 0.66 ? 3 : n >= 2 ? 2 : 1;
         const seen = observed && observed.has(t);
         const why = typeof v === "number" ? "" : [...v].slice(0, 12).join("\n");
-        return `<button class="mcell h${lvl}${seen ? " seen" : ""}" data-intel-profile="techniques:${esc(t)}" title="${esc(t)} ${esc(KB.techniques[t].n)}${why ? "\n\n" + esc(why) : ""}"><b>${esc(t)}${n > 1 && max > 1 ? `<em>${n}</em>` : ""}</b><span>${esc(KB.techniques[t].n)}</span>${seen ? "<i>reported for these IOCs</i>" : ""}</button>`;
+        return `<button class="mcell h${lvl}${seen ? " seen" : ""}${cls ? " " + cls(t) : ""}" data-intel-profile="techniques:${esc(t)}" title="${esc(t)} ${esc(KB.techniques[t].n)}${why ? "\n\n" + esc(why) : ""}"><b>${esc(t)}${n > 1 && max > 1 ? `<em>${n}</em>` : ""}</b><span>${esc(KB.techniques[t].n)}</span>${seen ? `<i>${esc(t_(mark))}</i>` : ""}</button>`;
       }).join("")}</div>`;
-    }).join("")}</div>`;
+    }).join("")}</div></div>`;
   }
 
   // ------------------------------------------------------------ report hooks (called from app.js)
@@ -236,7 +239,7 @@
 
   // ------------------------------------------------------------ the Shield page: attribution / ATT&CK / timeline / library / profiles
   // Shield is a view of its own next to Report and Graph (app.js setView("shield")); everything is drawn into #intelBody.
-  const TABS = ["scan", "attack", "timeline", "library"];
+  const TABS = ["scan", "attack", "defend", "timeline"];
   const scroller = () => $("#shieldWrap");
   // A site built on ARACHNE can limit Shield to some accounts: window.ArachneShieldGate() returns false (and
   // explains why) when this user may not open it. The app itself has no accounts, so Shield is always open there.
@@ -246,6 +249,7 @@
   function open(tab = null, prof = null) {
     if (S.view !== "shield" && !allowed()) return;
     if (tab === "matrix") tab = "attack";
+    if (tab === "library") { openLibrary(); return; }
     if (tab && TABS.includes(tab)) view.tab = tab;
     view.stack = prof ? [prof] : [];
     if (S.view !== "shield") setView("shield"); else render();
@@ -274,20 +278,47 @@
     const prof = view.stack[view.stack.length - 1];
     $$("#intelTabs [data-intel-tab]").forEach((b) => b.classList.toggle("on", !prof && b.dataset.intelTab === view.tab));
     $("#intelBack").hidden = !prof;
+    // the explanation belongs to the attribution tab only
+    const how = $("#shieldWrap .sh-how"); if (how) how.hidden = !!prof || view.tab !== "scan";
+    const rb = $("[data-intel-report]"); if (rb) rb.disabled = !S.scanId || !KB;
     if (!KB) {
       load().catch(() => {});
       body.innerHTML = failed ? `<div class="empty-note">Threat intel data could not be loaded ({err}). <button class="btn xs" data-intel-retry>Try again</button></div>`.replace("{err}", esc(failed))
         : '<div class="src-running"><span class="spinner"></span>Loading MITRE ATT&amp;CK and threat actor data…</div>';
       return;
     }
-    // library search: a scan event must not wipe what is being typed
-    const q = $("[data-intel-q]", body);
-    if (!prof && view.tab === "library" && q && document.activeElement === q && !view.focusQ) return;
     const sc = scroller(), st = sc ? sc.scrollTop : 0;
-    body.innerHTML = prof ? profileHTML(prof) : view.tab === "timeline" ? scanTimelineHTML() : view.tab === "library" ? libraryHTML() : view.tab === "attack" ? attackHTML() : scanHTML();
+    const mx = $(".ix-mxwrap", body), mxl = mx ? mx.scrollLeft : 0;
+    body.innerHTML = prof ? profileHTML(prof) : view.tab === "timeline" ? scanTimelineHTML() : view.tab === "attack" ? attackHTML() : view.tab === "defend" ? defendHTML() : scanHTML();
     if (sc) sc.scrollTop = st;
-    if (view.tab === "library" && !prof) { const i = $("[data-intel-q]", body); if (i && document.activeElement !== i && view.focusQ) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); view.focusQ = false; } }
+    const mx2 = $(".ix-mxwrap", body); if (mx2 && mxl) mx2.scrollLeft = mxl;
   }
+
+  // ------------------------------------------------------------ the threat library window (top bar, key T)
+  function openLibrary() {
+    if (!allowed()) return;
+    lib.stack = [];
+    $("#libModal").classList.add("open");
+    renderLib();
+    load().catch(() => {});
+    setTimeout(() => $("#libModal [data-intel-q]")?.focus(), 30);
+  }
+  function renderLib() {
+    const body = $("#libBody");
+    if (!body) return;
+    const prof = lib.stack[lib.stack.length - 1];
+    $("#libBack").hidden = !prof;
+    if (!KB) {
+      body.innerHTML = failed ? `<div class="empty-note">Threat intel data could not be loaded ({err}). <button class="btn xs" data-intel-retry>Try again</button></div>`.replace("{err}", esc(failed))
+        : '<div class="src-running"><span class="spinner"></span>Loading MITRE ATT&amp;CK and threat actor data…</div>';
+      return;
+    }
+    // a search being typed is never wiped: only the list under it is redrawn
+    if (!prof && $("[data-intel-q]", body) && document.activeElement === $("[data-intel-q]", body)) { const l = $("#ixLibList"); if (l) { l.innerHTML = libList(); return; } }
+    body.innerHTML = prof ? profileHTML(prof, { lib: true }) : libraryHTML();
+    body.scrollTop = 0;
+  }
+  const inLib = (el) => !!el.closest("#libModal");
 
   // ------------------------------------------------------------ attribution: which threat actors an IOC points to, and how sure that is
   // Only evidence about the IOC itself counts:
@@ -371,13 +402,13 @@
   function scanHTML() {
     if (!S.scanId) return `<div class="sh-empty"><div class="sh-empty-ic">${SHIELD_SVG}</div><h2>Nothing to attribute yet</h2>
       <p>Scan an IOC and Shield shows which threat actors the sources tie it to and how sure that is, the malware and campaigns involved, the ATT&amp;CK techniques and a timeline of everything the sources dated.</p>
-      <p>You can also scan an actor, a malware family or an ATT&amp;CK ID directly (for example <span class="mono">APT29</span>, <span class="mono">Emotet</span> or <span class="mono">T1059.001</span>), or browse the library.</p>
-      <p><button class="btn sm" data-intel-tab="library">Browse the library</button></p></div>`;
+      <p>You can also scan an actor, a malware family or an ATT&amp;CK ID directly (for example <span class="mono">APT29</span>, <span class="mono">Emotet</span> or <span class="mono">T1059.001</span>), or browse the threat library.</p>
+      <p><button class="btn sm" data-intel-library>Browse the threat library</button></p></div>`;
     const c = context();
     const kb = kbNodes();
     if (!c.nodes.size) {
       return `<div class="empty-note">${kb.length ? `None of the ${kb.length} malware / actor indicators in this scan match a profile.` : "No source has linked this scan to a malware family, threat actor or ATT&CK technique yet."} Sources that do: ThreatFox, MalwareBazaar, URLhaus, VirusTotal, AlienVault OTX, Hybrid Analysis. You can also scan a family name, an actor or a technique ID (for example <span class="mono">T1059.001</span>) directly.</div>`
-        + `<p style="text-align:center"><button class="btn sm ghost" data-intel-tab="library">Browse the library</button></p>`;
+        + `<p style="text-align:center"><button class="btn sm ghost" data-intel-library>Browse the threat library</button></p>`;
     }
     const rows = attributionRows();
     const iocs = [...S.nodes.values()].filter((n) => !KB_TYPES.includes(n.type) && (n.root || S.results.has(n.id)));
@@ -411,7 +442,7 @@
       ${rows.length ? `<div class="rep-sec"><h3>Attribution by IOC <em>${rows.length}</em></h3>
         <p class="msg ix-note"><span>How each IOC in this scan ties to a threat actor, based only on what the sources said about that IOC.</span> <span>Malware that many actors share (Cobalt Strike, Mimikatz, remote access tools) doesn't attribute anything on its own.</span> <span>What each confidence level means is under How Shield works, at the bottom of the page.</span></p>
         <div class="sh-rows">${rows.slice(0, 200).map(row).join("")}</div>${rows.length > 200 ? `<p class="msg">Showing the first 200 of ${rows.length}.</p>` : ""}</div>` : ""}
-      ${board.length ? `<div class="rep-sec"><h3>Threat actors <em>${board.length}</em></h3><div class="sh-actors">${board.map(actorRow).join("")}</div></div>`
+      ${board.length ? `<div class="rep-sec"><h3>Threat actors <em>${board.length}</em>${board.length > 1 && board[1].g.startsWith("G") && board[0].g.startsWith("G") ? `<button class="btn xs ghost" data-intel-compare="${esc(board[0].g)}|${esc(board[1].g)}" title="Their ATT&CK techniques and malware side by side">Compare the top two</button>` : ""}</h3><div class="sh-actors">${board.map(actorRow).join("")}</div></div>`
         : rows.length ? `<div class="rep-sec"><h3>Threat actors <em>0</em></h3><div class="empty-note">No source named a threat actor for these IOCs, and their malware is too widely shared to point to one.</div></div>` : ""}
       ${sharedAll.size ? `<div class="rep-sec"><h3>Shared malware <em>${sharedAll.size}</em></h3><p class="msg ix-note">Used by many actors according to MITRE ATT&amp;CK, so these don't count towards attribution.</p>
         <div class="ix-chips">${[...sharedAll.keys()].map((s) => chip(ref("software", s), ` <small>${KB.software[s].k === "tool" ? "tool" : `${KB.software[s].g.length} actors`}</small>`)).join("")}</div>
@@ -422,26 +453,135 @@
       ${attribution()}`;
   }
   // one bar per ATT&CK tactic: how many of the scan's techniques fall under it
-  function tacticBars(c) {
+  function tacticBars(c, link = true) {
     const per = KB.tactics.map(([s, , name]) => [name, [...c.tech.keys()].filter((t) => KB.techniques[t].ta.includes(s)).length]);
     const max = Math.max(1, ...per.map((x) => x[1]));
-    return `<div class="sh-tactics">${per.map(([name, n]) => `<button translate="no" class="sh-tac ${n ? "" : "zero"}" data-intel-tab="attack" title="${esc(name)}: ${n}"><span translate="no">${esc(name)}</span><i><b style="width:${(n / max) * 100}%"></b></i><em>${n}</em></button>`).join("")}</div>`;
+    const tag = link ? "button" : "div";
+    return `<div class="sh-tactics">${per.map(([name, n]) => `<${tag} translate="no" class="sh-tac ${n ? "" : "zero"}"${link ? ' data-intel-tab="attack"' : ""} title="${esc(name)}: ${n}"><span translate="no">${esc(name)}</span><i><b style="width:${(n / max) * 100}%"></b></i><em>${n}</em></${tag}>`).join("")}</div>`;
   }
 
+  // ATT&CK tab: the whole scan, or one lens on it (techniques a source reported, one actor, one malware, one campaign)
+  function lenses(c) {
+    const L = [];
+    if (c.observed.size) L.push(["reported", null, "Reported for these IOCs"]);
+    const seen = new Set();
+    for (const x of actorBoard(attributionRows())) if (KB.groups[x.g].t.length) { seen.add(x.g); L.push(["g:" + x.g, "groups", KB.groups[x.g].n]); }
+    for (const [g, node] of c.groups) if (node && !seen.has(g) && KB.groups[g].t.length) L.push(["g:" + g, "groups", KB.groups[g].n]);
+    for (const sid of c.software.keys()) if (KB.software[sid].t.length) L.push(["s:" + sid, "software", KB.software[sid].n]);
+    for (const [cid, node] of c.campaigns) if (node && KB.campaigns[cid].t.length) L.push(["c:" + cid, "campaigns", KB.campaigns[cid].n]);
+    return L;
+  }
   function attackHTML() {
-    if (!S.scanId) return `<div class="empty-note">Scan an IOC first: the ATT&amp;CK techniques of the malware, actors and campaigns the sources link it to are mapped here. Or browse the <button class="btn xs" data-intel-tab="library">Library</button>.</div>`;
+    if (!S.scanId) return `<div class="empty-note">Scan an IOC first: the ATT&amp;CK techniques of the malware, actors and campaigns the sources link it to are mapped here.</div>`;
     const c = context();
     if (!c.tech.size) return `<div class="empty-note">No ATT&amp;CK techniques are linked to this scan yet. They come from the malware, threat actors and campaigns the sources tie the IOCs to, and from techniques sources report directly.</div>`;
-    const rows = [...c.tech].map(([t, why]) => [t, why]).sort((a, b) => c.observed.has(b[0]) - c.observed.has(a[0]) || b[1].size - a[1].size || a[0].localeCompare(b[0]));
-    const tacs = new Set(rows.flatMap(([t]) => KB.techniques[t].ta)).size;
-    return `<div class="rep-sec"><h3>MITRE ATT&amp;CK matrix <em>${c.tech.size}</em>
+    const L = lenses(c);
+    if (!L.some((x) => x[0] === view.lens)) view.lens = "all";
+    const lens = view.lens, kind = lens.slice(0, 2);
+    let counts = c.tech, observed = c.observed, mark = "reported for these IOCs", note;
+    const tacsOf = (m) => new Set([...m.keys()].flatMap((t) => KB.techniques[t].ta)).size;
+    if (lens === "reported") {
+      counts = new Map([...c.tech].filter(([t]) => c.observed.has(t)));
+      observed = null;
+      note = `<span>${counts.size === 1 ? "1 technique a source reported for these IOCs." : `${counts.size} techniques sources reported for these IOCs.`}</span> <span>The strongest evidence of what happened.</span>`;
+    } else if (kind === "g:") {
+      // an actor: everything it is known to use, with the techniques this scan also links to marked
+      const g = lens.slice(2), o = KB.groups[g];
+      counts = new Map(o.t.map((t) => [t, new Set([o.n])]));
+      // marked: what other evidence in the scan (its malware, other actors, reported techniques) also points to
+      observed = new Set(o.t.filter((t) => c.observed.has(t) || [...(c.tech.get(t) || [])].some((w) => w !== o.n)));
+      mark = "also from other evidence";
+      note = `<span translate="no">${esc(o.n)}</span>: <span>${o.t.length} techniques across ${tacsOf(counts)} tactics.</span> <span>${observed.size} of them also come from other evidence in this scan, such as its malware (marked).</span>`;
+    } else if (kind === "s:" || kind === "c:") {
+      const x = kind === "s:" ? KB.software[lens.slice(2)] : KB.campaigns[lens.slice(2)];
+      counts = new Map([...c.tech].filter(([t]) => x.t.includes(t)));
+      note = `<span translate="no">${esc(x.n)}</span>: <span>${counts.size} techniques across ${tacsOf(counts)} tactics.</span>`;
+    } else {
+      note = `<span>${c.tech.size} techniques across ${tacsOf(c.tech)} tactics.</span> <span>Techniques the malware, actors and campaigns linked to this scan are known to use.</span>${c.observed.size ? ` <span>${c.observed.size} of them were reported by sources for these IOCs (marked).</span>` : ""} <span>Darker cells are shared by more of them. Click one for its profile.</span>`;
+    }
+    const rows = [...counts].sort((a, b) => (observed ? observed.has(b[0]) - observed.has(a[0]) : 0) || b[1].size - a[1].size || a[0].localeCompare(b[0]));
+    const lensBtn = (k, label, cls = "", raw = false) => `<button class="sh-lens ${cls} ${k === lens ? "on" : ""}" data-intel-lens="${esc(k)}"${raw ? ' translate="no"' : ""}>${esc(label)}</button>`;
+    const group = (kd, title) => { const xs = L.filter((x) => x[1] === kd); return xs.length ? `<span class="sh-lens-g">${title}</span>${xs.slice(0, 12).map(([k, , n]) => lensBtn(k, n, kd, true)).join("")}` : ""; };
+    return `<div class="rep-sec"><h3>MITRE ATT&amp;CK matrix <em>${counts.size}</em>
         <span class="sh-acts"><button class="btn xs ghost" data-intel-copytech title="Copy every technique ID, one per line">${ICON.copy}Copy IDs</button><button class="btn xs ghost" data-intel-navigator title="A layer file for the MITRE ATT&CK Navigator (mitre-attack.github.io/attack-navigator): Open Existing Layer, Upload from local">Navigator layer</button></span></h3>
-      <p class="msg ix-note"><span>${c.tech.size} techniques across ${tacs} tactics.</span> <span>Techniques the malware, actors and campaigns linked to this scan are known to use.</span>${c.observed.size ? ` <span>${c.observed.size} of them were reported by sources for these IOCs (marked).</span>` : ""} <span>Darker cells are shared by more of them. Click one for its profile.</span></p>
-      ${matrixHTML(c.tech, { observed: c.observed })}</div>
+      ${L.length ? `<div class="sh-lenses"><span class="sh-lens-g">Show</span>${lensBtn("all", "Everything linked")}${L.some((x) => x[0] === "reported") ? lensBtn("reported", "Reported for these IOCs", "lrep") : ""}${group("groups", "Actor")}${group("software", "Malware")}${group("campaigns", "Campaign")}</div>` : ""}
+      <p class="msg ix-note">${note}</p>
+      ${counts.size ? matrixHTML(counts, { observed, mark }) : '<div class="empty-note">Nothing to show for this choice.</div>'}</div>
       <div class="rep-sec"><h3>Techniques <em>${rows.length}</em></h3><div class="ix-list sh-tech" translate="no">${rows.slice(0, 400).map(([t, why]) => `<button class="ix-li" data-intel-profile="techniques:${esc(t)}"><span class="ix-id">${esc(t)}</span><b>${esc(KB.techniques[t].n)}</b>
         <span class="ix-li-a">${esc(KB.techniques[t].ta.map((x) => KB.tacticName[x] || x).join(", "))} · <span translate="no">${esc([...why].slice(0, 4).join(", "))}${why.size > 4 ? "…" : ""}</span></span>${c.observed.has(t) ? '<span class="sh-pill direct">Reported</span>' : `<span class="ix-cc">${why.size}</span>`}</button>`).join("")}</div></div>
       ${attribution()}`;
   }
+
+  // ------------------------------------------------------------ Defend: what to do about the techniques (MITRE mitigations, detections, log sources)
+  const mitUrl = (id) => `https://attack.mitre.org/mitigations/${id}/`;
+  const detUrl = (id) => `https://attack.mitre.org/detectionstrategies/${id}/`;
+  const dcUrl = (id) => `https://attack.mitre.org/datacomponents/${id}/`;
+  // techW: technique -> weight. Each mitigation / detection / log source collects the techniques it covers.
+  function defence(techW) {
+    const mit = new Map(), dc = new Map(), det = new Map();
+    const bump = (m, k, t, w) => { const x = m.get(k) || { id: k, t: [], w: 0 }; x.t.push(t); x.w += w; m.set(k, x); };
+    for (const [t, w] of techW) {
+      const o = KB.techniques[t];
+      if (!o) continue;
+      for (const k of o.m || []) if (KB.mitigations?.[k]) bump(mit, k, t, w);
+      for (const k of o.dc || []) if (KB.datacomps?.[k]) bump(dc, k, t, w);
+      for (const k of o.det || []) if (KB.detections?.[k]) bump(det, k, t, w);
+    }
+    const sort = (m) => [...m.values()].sort((a, b) => b.w - a.w || b.t.length - a.t.length || a.id.localeCompare(b.id));
+    return { mit: sort(mit), dc: sort(dc), det: sort(det) };
+  }
+  // a technique a source reported for the IOCs counts most, then how many of the linked malware / actors use it
+  const scanWeights = (c) => new Map([...c.tech].map(([t, why]) => [t, (c.observed.has(t) ? 5 : 0) + why.size]));
+  const techChips = (ts, max = 12) => ts.slice(0, max).map((t) => chip(ref("techniques", t), ` <small>${esc(t)}</small>`)).join("") + (ts.length > max ? `<span class="msg">+${ts.length - max}</span>` : "");
+  function defendHTML() {
+    if (!S.scanId) return `<div class="empty-note">Scan an IOC first: Shield then ranks the MITRE ATT&amp;CK mitigations, log sources and detections that matter most against what is linked to it.</div>`;
+    const c = context();
+    if (!c.tech.size) return `<div class="empty-note">No ATT&amp;CK techniques are linked to this scan yet, so there is nothing to defend against.</div>`;
+    if (!KB.mitigations) return `<div class="empty-note">This copy of the threat intel data has no mitigations. Rebuild it with tools/build_threat_kb.py.</div>`;
+    return defendBody(scanWeights(c), c.observed) + attribution();
+  }
+  function defendBody(w, observed = new Set(), { compact = false } = {}) {
+    const d = defence(w), total = w.size;
+    const pct = (n) => `${Math.round((n / Math.max(1, total)) * 100)}%`;
+    const top5 = new Set(d.mit.slice(0, 5).flatMap((x) => x.t));
+    const top5dc = new Set(d.dc.slice(0, 5).flatMap((x) => x.t));
+    const rep = (ts) => ts.filter((t) => observed.has(t)).length;
+    const mitRow = (x, i) => {
+      const o = KB.mitigations[x.id], r = rep(x.t);
+      return `<div class="sh-mit"><div class="sh-mit-h"><span class="sh-rank">${i + 1}</span><b translate="no">${esc(o.n)}</b><a class="ix-id" href="${esc(mitUrl(x.id))}" target="_blank" rel="noopener noreferrer" translate="no">${esc(x.id)} ↗</a>
+        <span class="sh-mit-n"><span>${x.t.length === 1 ? "Covers 1 technique" : `Covers ${x.t.length} techniques`}</span>${r ? ` · <span class="sh-c-low">${r === 1 ? "1 reported" : `${r} reported`}</span>` : ""}</span></div>
+        ${compact ? "" : `<p class="sh-mit-d" translate="no">${esc(o.d)}</p><details class="sh-more"><summary>Techniques it covers</summary><div class="ix-chips">${techChips(x.t, 40)}</div></details>`}</div>`;
+    };
+    const max = Math.max(1, ...d.dc.map((x) => x.t.length));
+    const dcRow = (x) => `<a class="sh-tac" href="${esc(dcUrl(x.id))}" target="_blank" rel="noopener noreferrer" title="${esc(x.id)}"><span translate="no">${esc(KB.datacomps[x.id].n)}</span><i><b style="width:${(x.t.length / max) * 100}%"></b></i><em>${x.t.length}</em></a>`;
+    if (compact) return `<div class="sh-mits">${d.mit.slice(0, 5).map(mitRow).join("")}</div>`;
+    const detRow = (x) => `<div class="sh-det"><a class="ix-id" href="${esc(detUrl(x.id))}" target="_blank" rel="noopener noreferrer" translate="no">${esc(x.id)} ↗</a><b translate="no">${esc(KB.detections[x.id].n)}</b><div class="ix-chips">${techChips(x.t, 3)}${x.t.some((t) => observed.has(t)) ? '<span class="sh-pill direct">Reported</span>' : ""}</div></div>`;
+    return `<div class="rep-tiles ix-tiles sh-tiles">
+        <div class="rep-tile"><b>${total}</b><span>Techniques to defend against</span></div>
+        <div class="rep-tile"><b>${pct(top5.size)}</b><span>Covered by the top 5 mitigations</span></div>
+        <div class="rep-tile"><b>${pct(top5dc.size)}</b><span>Visible in the top 5 log sources</span></div>
+        <div class="rep-tile"><b>${d.det.length}</b><span>MITRE detection strategies</span></div>
+        <div class="rep-tile"><b>${observed.size}</b><span>Reported for these IOCs</span></div></div>
+      <div class="rep-sec"><h3>Mitigations, by impact <em>${d.mit.length}</em><span class="sh-acts"><button class="btn xs ghost" data-intel-copydefend title="Copy the mitigations and log sources as a checklist (Markdown)">${ICON.copy}Copy checklist</button></span></h3>
+        <p class="msg ix-note"><span>MITRE ATT&amp;CK mitigations ranked by how much of this scan's activity they block.</span> <span>Techniques a source reported for these IOCs weigh most.</span> <span>Start at the top.</span></p>
+        <div class="sh-mits">${d.mit.slice(0, 12).map(mitRow).join("")}</div>${d.mit.length > 12 ? `<details class="sh-more"><summary>${d.mit.length - 12} more mitigations</summary><div class="sh-mits">${d.mit.slice(12).map((x, i) => mitRow(x, i + 12)).join("")}</div></details>` : ""}</div>
+      ${d.dc.length ? `<div class="rep-sec"><h3>Log sources to collect <em>${d.dc.length}</em></h3>
+        <p class="msg ix-note"><span>The telemetry (ATT&amp;CK data components) that can show these techniques, and how many each one covers.</span> <span>If you can't see it, you can't detect it.</span></p>
+        <div class="sh-tactics">${d.dc.slice(0, 16).map(dcRow).join("")}</div></div>` : ""}
+      ${d.det.length ? `<div class="rep-sec"><h3>Detection strategies <em>${d.det.length}</em></h3>
+        <p class="msg ix-note"><span>MITRE's detection guidance for these techniques, most relevant first.</span> <span>Each one opens the analytics on attack.mitre.org.</span> <span>For ready-made rules for the IOCs themselves, use Export, Detection rules.</span></p>
+        <div class="sh-dets">${d.det.slice(0, 30).map(detRow).join("")}</div>${d.det.length > 30 ? `<details class="sh-more"><summary>${d.det.length - 30} more detection strategies</summary><div class="sh-dets">${d.det.slice(30, 200).map(detRow).join("")}</div></details>` : ""}</div>` : ""}`;
+  }
+  function defendChecklist() {
+    const c = context(), d = defence(scanWeights(c));
+    const lines = [`# Defensive checklist: ${seedLabel()}`, "", `${c.tech.size} MITRE ATT&CK techniques linked to this scan.`, "", "## Mitigations, by impact", ""];
+    for (const x of d.mit) lines.push(`- [ ] ${KB.mitigations[x.id].n} (${x.id}): covers ${x.t.length} technique${x.t.length === 1 ? "" : "s"} ${mitUrl(x.id)}`);
+    lines.push("", "## Log sources to collect", "");
+    for (const x of d.dc.slice(0, 25)) lines.push(`- [ ] ${KB.datacomps[x.id].n} (${x.id}): ${x.t.length} technique${x.t.length === 1 ? "" : "s"}`);
+    return lines.join("\n") + "\n";
+  }
+  const seedLabel = () => { const v = (typeof seedNodes === "function" ? seedNodes() : []).map((n) => n.value); return v.length ? v.slice(0, 3).join(", ") + (v.length > 3 ? ` +${v.length - 3}` : "") : "scan"; };
+
   // ATT&CK Navigator layer (format 4.5) for the scan's techniques
   function navigatorLayer() {
     const c = context();
@@ -471,11 +611,10 @@
     if (!S.scanId) return '<div class="empty-note">Scan an IOC first. Dates the sources report (first seen, registered, added to a blocklist, campaign activity) are put in order here.</div>';
     return `<p class="msg ix-note">Every date the sources reported for this scan, newest first: when IOCs were first and last seen, registered, submitted or added to a list, and when the linked ATT&amp;CK campaigns were active.</p>${timelineHTML(timeline(), { empty: "No source has reported a date for this scan yet." })}`;
   }
-  function libraryHTML() {
-    const q = view.q.trim(), nq = norm(q);
-    const kinds = [["groups", "Threat actors"], ["software", "Malware & tools"], ["campaigns", "Campaigns"], ["techniques", "Techniques"]];
-    const kind = view.lib;
-    let items = Object.entries(KB[kind]);
+  const LIB_KINDS = [["groups", "Threat actors"], ["software", "Malware & tools"], ["campaigns", "Campaigns"], ["techniques", "Techniques"], ["mitigations", "Mitigations"]];
+  function libItems() {
+    const q = lib.q.trim(), nq = norm(q), kind = lib.kind;
+    let items = Object.entries(KB[kind] || {});
     if (q) {
       const ql = q.toLowerCase();
       items = items.map(([id, o]) => {
@@ -484,15 +623,23 @@
         return [id, o, score];
       }).filter((x) => x[2] < 99).sort((a, b) => a[2] - b[2] || a[1].n.localeCompare(b[1].n));
     } else {
-      items = items.filter(([id, o]) => kind !== "groups" || o.src === "attack").sort((a, b) => kind === "techniques" ? a[0].localeCompare(b[0]) : a[1].n.localeCompare(b[1].n));
+      items = items.filter(([, o]) => kind !== "groups" || o.src === "attack").sort((a, b) => kind === "techniques" || kind === "mitigations" ? a[0].localeCompare(b[0]) : a[1].n.localeCompare(b[1].n));
     }
-    const total = items.length, shown = items.slice(0, 120);
-    const counts = Object.fromEntries(kinds.map(([k]) => [k, Object.keys(KB[k]).length]));
-    return `<div class="ix-lib-h"><input class="inp" data-intel-q placeholder="Search by name, alias or ATT&CK ID (APT29, Cozy Bear, Emotet, T1566, RU)…" value="${esc(view.q)}" spellcheck="false">
-      <div class="seg">${kinds.map(([k, l]) => `<button data-intel-lib="${k}" class="${k === kind ? "on" : ""}">${esc(l)} <em>${counts[k]}</em></button>`).join("")}</div></div>
-      <p class="msg ix-note"><span>${q ? (total === 1 ? "1 match." : `${total} matches.`) : kind === "groups" ? `The ${total} MITRE ATT&amp;CK groups.` : `${total} entries.`}</span>${!q && kind === "groups" ? ` <span>Search to include the ${counts.groups - total} more actors from the MISP Galaxy.</span>` : ""}${total > shown.length ? ` <span>Showing the first ${shown.length}.</span>` : ""}</p>
-      <div class="ix-list" translate="no">${shown.map(([id, o]) => `<button class="ix-li" data-intel-profile="${kind}:${esc(id)}"><span class="ix-id">${esc(/^[GSCT]\d/.test(id) ? id : "MISP")}</span><b>${esc(o.n)}</b>
-        <span class="ix-li-a">${esc(kind === "techniques" ? o.ta.map((t) => KB.tacticName[t] || t).join(", ") : (o.a || []).slice(0, 6).join(", "))}</span>${o.country ? `<span class="ix-cc">${esc(o.country)}</span>` : ""}</button>`).join("") || '<div class="empty-note">Nothing matches.</div>'}</div>
+    return items;
+  }
+  function libList() {
+    const kind = lib.kind, items = libItems(), total = items.length, shown = items.slice(0, 120), q = lib.q.trim();
+    const all = Object.keys(KB.groups).length;
+    const sub = (id, o) => kind === "techniques" ? o.ta.map((t) => KB.tacticName[t] || t).join(", ") : kind === "mitigations" ? (o.t.length === 1 ? "1 technique" : `${o.t.length} techniques`) : (o.a || []).slice(0, 6).join(", ");
+    return `<p class="msg ix-note"><span>${q ? (total === 1 ? "1 match." : `${total} matches.`) : kind === "groups" ? `The ${total} MITRE ATT&amp;CK groups.` : `${total} entries.`}</span>${!q && kind === "groups" ? ` <span>Search to include the ${all - total} more actors from the MISP Galaxy.</span>` : ""}${total > shown.length ? ` <span>Showing the first ${shown.length}.</span>` : ""}</p>
+      <div class="ix-list" translate="no">${shown.map(([id, o]) => `<button class="ix-li" data-intel-profile="${kind}:${esc(id)}"><span class="ix-id">${esc(/^[GSCTM]\d/.test(id) ? id : "MISP")}</span><b>${esc(o.n)}</b>
+        <span class="ix-li-a">${esc(sub(id, o))}</span>${o.country ? `<span class="ix-cc">${esc(o.country)}</span>` : ""}</button>`).join("") || '<div class="empty-note">Nothing matches.</div>'}</div>`;
+  }
+  function libraryHTML() {
+    const counts = Object.fromEntries(LIB_KINDS.map(([k]) => [k, Object.keys(KB[k] || {}).length]));
+    return `<div class="ix-lib-h"><input class="inp" data-intel-q placeholder="Search by name, alias or ATT&CK ID (APT29, Cozy Bear, Emotet, T1566, RU)…" value="${esc(lib.q)}" spellcheck="false">
+      <div class="seg">${LIB_KINDS.filter(([k]) => counts[k]).map(([k, l]) => `<button data-intel-lib="${k}" class="${k === lib.kind ? "on" : ""}">${esc(l)} <em>${counts[k]}</em></button>`).join("")}</div></div>
+      <div id="ixLibList">${libList()}</div>
       ${attribution()}`;
   }
   function attribution() {
@@ -500,10 +647,13 @@
     return `<p class="ix-attr" translate="no">Data: <a href="https://attack.mitre.org/" target="_blank" rel="noopener noreferrer">MITRE ATT&amp;CK®</a>${a.attack_version ? ` v${esc(a.attack_version)}` : ""} © The MITRE Corporation, reproduced and distributed with the permission of The MITRE Corporation; <a href="https://github.com/MISP/misp-galaxy" target="_blank" rel="noopener noreferrer">MISP Galaxy</a> (CC0). Built ${esc(a.built || "")}.</p>`;
   }
 
-  function profileHTML(r) {
+  function profileHTML(r, { lib: inLibrary = false } = {}) {
+    if (r.kind === "compare") return compareHTML(...r.id.split("|"), inLibrary);
+    if (r.kind === "mitigations") return mitigationHTML(r.id);
     const o = obj(r);
     if (!o) return '<div class="empty-note">Profile not found.</div>';
-    const inScan = kbNodes().filter((n) => { const x = resolve(n.type, n.value); return x && x.kind === r.kind && x.id === r.id; });
+    // the library is reference data: nothing about the current scan there
+    const inScan = inLibrary ? [] : kbNodes().filter((n) => { const x = resolve(n.type, n.value); return x && x.kind === r.kind && x.id === r.id; });
     const kv = [];
     const add = (k, v) => { if (v != null && v !== "" && !(Array.isArray(v) && !v.length)) kv.push(`<dt>${esc(k)}</dt><dd>${esc(Array.isArray(v) ? v.join(", ") : v)}</dd>`); };
     const links = [];
@@ -515,8 +665,12 @@
       add("ATT&CK ID", r.id.startsWith("G") ? r.id : "Not in MITRE ATT&CK (MISP Galaxy profile)");
       add("Country", o.country); add("Suspected sponsor", o.sponsor); add("Motive", o.motive); add("Active since", o.since);
       add("Targets", o.sectors); add("Victims", o.victims);
+      if (!inLibrary && S.scanId) sections += inScanActor(r.id);
+      sections += capabilitiesHTML(r.id);
       sections += sec("Malware & tools", o.s.length, `<div class="ix-chips">${listChips("software", sortBy("software", o.s), 80)}</div>`);
       sections += o.c.length ? sec("Campaigns", o.c.length, `<div class="ix-chips">${listChips("campaigns", o.c)}</div>`) : "";
+      sections += similarHTML(r.id);
+      if (o.t.length && KB.mitigations) sections += sec("Top mitigations against it", null, `<p class="msg ix-note"><span>The MITRE ATT&amp;CK mitigations that cover most of this actor's techniques.</span></p>${defendBody(new Map(o.t.map((t) => [t, 1])), new Set(), { compact: true })}`);
       for (const x of o.c) { const cp = KB.campaigns[x]; if (cp.first || cp.last) tl.push({ d: cp.first || cp.last, end: cp.last !== cp.first ? cp.last : null, what: `Campaign: ${cp.n}`, campaign: x }); }
       if (o.since && dateOf(`${o.since}-01-01`)) tl.push({ d: `${String(o.since).slice(0, 4)}-01-01`, what: "Active since (MISP Galaxy)" });
     } else if (r.kind === "software") {
@@ -540,6 +694,9 @@
       sections += sec("Threat actors using it", u.groups.length, `<div class="ix-chips">${listChips("groups", sortBy("groups", u.groups), 120)}</div>`);
       sections += sec("Malware & tools using it", u.software.length, `<div class="ix-chips">${listChips("software", sortBy("software", u.software), 120)}</div>`);
       if (u.campaigns.length) sections += sec("Campaigns", u.campaigns.length, `<div class="ix-chips">${listChips("campaigns", u.campaigns)}</div>`);
+      if (o.m?.length) sections += sec("Mitigations", o.m.length, `<div class="ix-chips">${o.m.filter((m) => KB.mitigations[m]).map((m) => `<button translate="no" class="ix-chip mitigations" data-intel-profile="mitigations:${esc(m)}">${esc(KB.mitigations[m].n)} <small>${esc(m)}</small></button>`).join("")}</div>`);
+      if (o.dc?.length) sections += sec("Log sources that can show it", o.dc.length, `<div class="ix-chips" translate="no">${o.dc.filter((d) => KB.datacomps[d]).map((d) => `<a class="ix-chip" href="${esc(dcUrl(d))}" target="_blank" rel="noopener noreferrer">${esc(KB.datacomps[d].n)}</a>`).join("")}</div>`);
+      if (o.det?.length) sections += sec("Detection strategies", o.det.length, `<div class="sh-dets">${o.det.filter((d) => KB.detections[d]).map((d) => `<div class="sh-det"><a class="ix-id" href="${esc(detUrl(d))}" target="_blank" rel="noopener noreferrer" translate="no">${esc(d)} ↗</a><b translate="no">${esc(KB.detections[d].n)}</b></div>`).join("")}</div>`);
     } else {
       add("ATT&CK", "Not described in MITRE ATT&CK yet");
       add("Platform", o.mp ? ({ win: "Windows", elf: "Linux", osx: "macOS", apk: "Android", ios: "iOS", js: "JavaScript", jar: "Java", ps1: "PowerShell", py: "Python", php: "PHP", vbs: "VBScript" })[o.mp.split(".")[0]] : null);
@@ -558,7 +715,7 @@
     const typ = KIND_TYPE[r.kind];
     return `<div class="ix-prof">
       <div class="ix-prof-h"><div class="d-top">${tchip(typ)}${inScan.length ? '<span class="vbadge">in this scan</span>' : ""}${r.kind === "groups" && o.src === "misp" ? '<span class="vbadge">MISP Galaxy</span>' : '<span class="vbadge">ATT&amp;CK</span>'}</div>
-        <h2>${esc(o.n)}${/^[GSCT]\d/.test(r.id) ? ` <span class="ix-id">${esc(r.id)}</span>` : ""}</h2>
+        <h2 translate="no">${esc(o.n)}${/^[GSCT]\d/.test(r.id) ? ` <span class="ix-id">${esc(r.id)}</span>` : ""}</h2>
         ${o.a?.length ? `<div class="ix-aka"><span>Also known as</span> ${o.a.map((a) => `<i translate="no">${esc(a)}</i>`).join("")}</div>` : ""}
         <div class="d-actions">${links.map(([l, u]) => `<a class="btn sm ghost" href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(l)} ↗</a>`).join("")}
           <button class="btn sm ghost" data-intel-scan="${esc(typ)}" data-value="${esc(r.kind === "techniques" ? r.id : o.n)}" title="Put it in the search box to look it up with the scanner">${ICON.pivot}Look up in scanner</button></div></div>
@@ -573,16 +730,173 @@
   }
   const sec = (title, n, html) => `<div class="rep-sec"><h3>${esc(title)}${n != null ? ` <em>${n}</em>` : ""}</h3>${html}</div>`;
 
+  // ------------------------------------------------------------ actor capabilities, similar actors, comparison
+  // what the actor can do: its techniques per tactic, and the platforms those techniques and its malware run on
+  function capabilitiesHTML(g) {
+    const o = KB.groups[g];
+    if (!o.t.length && !o.s.length) return "";
+    const tech = new Map(o.t.map((t) => [t, 1]));
+    const pl = new Map();
+    for (const t of o.t) for (const p of KB.techniques[t]?.pl || []) pl.set(p, (pl.get(p) || 0) + 1);
+    for (const sid of o.s) for (const p of KB.software[sid]?.pl || []) pl.set(p, (pl.get(p) || 0) + 1);
+    const plats = [...pl].sort((a, b) => b[1] - a[1]).slice(0, 10);
+    const mal = o.s.filter((sid) => KB.software[sid].k === "malware").length, tools = o.s.length - mal;
+    const own = o.s.filter((sid) => !sharedMal(KB.software[sid])).length;
+    const tacs = new Set(o.t.flatMap((t) => KB.techniques[t]?.ta || [])).size;
+    return `<div class="rep-sec"><h3>Capabilities</h3>
+      <div class="rep-tiles ix-tiles sh-tiles">
+        <div class="rep-tile"><b>${o.t.length}</b><span>ATT&amp;CK techniques</span></div>
+        <div class="rep-tile"><b>${tacs}<small>/${KB.tactics.length}</small></b><span>Tactics covered</span></div>
+        <div class="rep-tile"><b>${mal}</b><span>Malware</span></div>
+        <div class="rep-tile"><b>${tools}</b><span>Tools</span></div>
+        <div class="rep-tile"><b>${own}</b><span>Distinctive malware and tools</span></div></div>
+      ${o.t.length ? `<p class="msg ix-note"><span>Techniques per tactic, from MITRE ATT&amp;CK.</span> <span>Long bars are where this actor is strongest.</span></p>${tacticBars({ tech }, false)}` : ""}
+      ${plats.length ? `<div class="ix-row sh-plats"><span class="ix-lbl">Platforms</span><div class="ix-chips" translate="no">${plats.map(([p, n]) => `<span class="ix-chip">${esc(p)} <small>${n}</small></span>`).join("")}</div></div>` : ""}
+      ${o.t.length ? `<details class="sh-more"><summary>Show the full ATT&amp;CK matrix</summary>${matrixHTML(tech, { scale: 1 })}</details>` : ""}</div>`;
+  }
+  // in the current scan: how strongly the scan's IOCs point to this actor, and why
+  function inScanActor(g) {
+    const rows = attributionRows();
+    const b = actorBoard(rows).find((x) => x.g === g);
+    if (!b) return "";
+    const iocs = rows.filter((r) => r.actors.some((x) => x.g === g)).map((r) => r.n);
+    const c = context(), mine = new Set(KB.groups[g].t);
+    const overlap = [...c.observed].filter((t) => mine.has(t));
+    return `<div class="rep-sec sh-inscan"><h3>In this scan</h3>
+      <div class="ix-ctx"><div class="ix-row"><span class="ix-lbl">Confidence</span><div>${confPill(b.conf)} <span class="msg" translate="no">${esc([...b.why].slice(0, 5).join(" · "))}</span></div></div>
+      <div class="ix-row"><span class="ix-lbl">IOCs</span><div class="ix-chips">${iocs.slice(0, 20).map(iocBtn).join("")}${iocs.length > 20 ? `<span class="msg">+${iocs.length - 20}</span>` : ""}</div></div>
+      ${c.observed.size ? `<div class="ix-row"><span class="ix-lbl">TTP fit</span><div><span>${overlap.length} of the ${c.observed.size} techniques sources reported for these IOCs are known for this actor.</span></div></div>` : ""}</div></div>`;
+  }
+  // actors whose techniques and distinctive malware overlap most with this one (Jaccard on techniques)
+  function similar(g, max = 6) {
+    const a = KB.groups[g], A = new Set(a.t), SA = new Set(a.s);
+    if (A.size < 5) return [];
+    const out = [];
+    for (const [k, b] of Object.entries(KB.groups)) {
+      if (k === g || !b.t.length) continue;
+      let both = 0;
+      for (const t of b.t) if (A.has(t)) both++;
+      const sim = both / (A.size + b.t.length - both);
+      const sw = b.s.filter((x) => SA.has(x) && !sharedMal(KB.software[x]));
+      if (both) out.push({ g: k, sim, both, sw, score: sim + 0.08 * Math.min(sw.length, 5) });
+    }
+    return out.sort((x, y) => y.score - x.score).slice(0, max);
+  }
+  function similarHTML(g) {
+    const xs = similar(g);
+    if (!xs.length) return "";
+    return `<div class="rep-sec"><h3>Similar actors <em>${xs.length}</em></h3>
+      <p class="msg ix-note"><span>Actors with the most ATT&amp;CK techniques and distinctive malware in common.</span> <span>Worth ruling out before settling on an attribution.</span></p>
+      <div class="sh-sims">${xs.map((x) => `<div class="sh-sim"><button translate="no" class="sh-actor-n" data-intel-profile="groups:${esc(x.g)}"><b>${esc(KB.groups[x.g].n)}</b>${KB.groups[x.g].country ? `<span class="ix-cc">${esc(KB.groups[x.g].country)}</span>` : ""}</button>
+        <i class="sh-bar"><b style="width:${Math.round(x.sim * 100)}%"></b></i><span class="sh-sim-n"><span>${Math.round(x.sim * 100)}% overlap</span> · <span>${x.both} shared techniques</span>${x.sw.length ? ` · <span translate="no">${esc(x.sw.slice(0, 3).map((s) => KB.software[s].n).join(", "))}</span>` : ""}</span>
+        <button class="btn xs ghost" data-intel-compare="${esc(g)}|${esc(x.g)}">Compare</button></div>`).join("")}</div></div>`;
+  }
+  function compareHTML(ga, gb, inLibrary = false) {
+    const A = KB.groups[ga], B = KB.groups[gb];
+    if (!A || !B) return '<div class="empty-note">Profile not found.</div>';
+    const ta = new Set(A.t), tb = new Set(B.t);
+    const both = A.t.filter((t) => tb.has(t)), onlyA = A.t.filter((t) => !tb.has(t)), onlyB = B.t.filter((t) => !ta.has(t));
+    const sim = Math.round((both.length / Math.max(1, ta.size + tb.size - both.length)) * 100);
+    const counts = new Map([...new Set([...A.t, ...B.t])].map((t) => [t, new Set([ta.has(t) && tb.has(t) ? `${A.n} + ${B.n}` : ta.has(t) ? A.n : B.n])]));
+    const sa = new Set(A.s), sb = new Set(B.s);
+    const swBoth = A.s.filter((x) => sb.has(x)), swA = A.s.filter((x) => !sb.has(x)), swB = B.s.filter((x) => !sa.has(x));
+    const swChips = (ids) => ids.length ? sortBy("software", ids).map((x) => chip(ref("software", x), sharedMal(KB.software[x]) ? " <small>shared</small>" : "")).join("") : '<span class="msg">None</span>';
+    const rowKV = (k, f) => `<tr><th>${esc(k)}</th><td translate="no">${esc(f(A) ?? "–")}</td><td translate="no">${esc(f(B) ?? "–")}</td></tr>`;
+    return `<div class="ix-prof">
+      <div class="ix-prof-h"><div class="d-top"><span class="vbadge">Compare</span></div>
+        <h2 class="sh-vs"><button translate="no" class="ix-link sh-ca" data-intel-profile="groups:${esc(ga)}">${esc(A.n)}</button> <span>vs</span> <button translate="no" class="ix-link sh-cb" data-intel-profile="groups:${esc(gb)}">${esc(B.n)}</button></h2></div>
+      <div class="rep-tiles ix-tiles sh-tiles">
+        <div class="rep-tile"><b>${sim}%</b><span>Technique overlap</span></div>
+        <div class="rep-tile"><b>${both.length}</b><span>Shared techniques</span></div>
+        <div class="rep-tile"><b>${swBoth.length}</b><span>Shared malware and tools</span></div>
+        <div class="rep-tile"><b>${onlyA.length}</b><span>${esc(`Only ${A.n}`)}</span></div>
+        <div class="rep-tile"><b>${onlyB.length}</b><span>${esc(`Only ${B.n}`)}</span></div></div>
+      <div class="rep-sec"><table class="sh-cmp"><thead><tr><th></th><th translate="no" class="sh-ca">${esc(A.n)}</th><th translate="no" class="sh-cb">${esc(B.n)}</th></tr></thead><tbody>
+        ${rowKV("Country", (o) => o.country)}${rowKV("Motive", (o) => o.motive)}${rowKV("Active since", (o) => o.since)}
+        ${rowKV("ATT&CK techniques", (o) => String(o.t.length))}${rowKV("Malware & tools", (o) => String(o.s.length))}${rowKV("Campaigns", (o) => String(o.c.length))}</tbody></table></div>
+      ${counts.size ? `<div class="rep-sec"><h3>ATT&amp;CK side by side <em>${counts.size}</em></h3>
+        <p class="msg ix-note sh-legend"><span class="sh-key both"></span><span>Both</span> <span class="sh-key ca"></span><span translate="no">${esc(A.n)}</span> <span class="sh-key cb"></span><span translate="no">${esc(B.n)}</span></p>
+        ${matrixHTML(counts, { scale: 1, cls: (t) => ta.has(t) && tb.has(t) ? "cmp-both" : ta.has(t) ? "cmp-a" : "cmp-b" })}</div>` : ""}
+      ${sec("Shared malware & tools", swBoth.length, `<div class="ix-chips">${swChips(swBoth)}</div>`)}
+      <div class="sh-cmp2">${sec(`Only ${A.n}`, swA.length, `<div class="ix-chips">${swChips(swA)}</div>`)}${sec(`Only ${B.n}`, swB.length, `<div class="ix-chips">${swChips(swB)}</div>`)}</div>
+      ${attribution()}</div>`;
+  }
+  function mitigationHTML(id) {
+    const o = KB.mitigations?.[id];
+    if (!o) return '<div class="empty-note">Profile not found.</div>';
+    const users = new Map();
+    for (const t of o.t) for (const g of KB.used[t]?.groups || []) users.set(g, (users.get(g) || 0) + 1);
+    const top = [...users].sort((a, b) => b[1] - a[1]).slice(0, 30);
+    return `<div class="ix-prof">
+      <div class="ix-prof-h"><div class="d-top"><span class="vbadge">Mitigation</span><span class="vbadge">ATT&amp;CK</span></div>
+        <h2 translate="no">${esc(o.n)} <span class="ix-id">${esc(id)}</span></h2>
+        <div class="d-actions"><a class="btn sm ghost" href="${esc(mitUrl(id))}" target="_blank" rel="noopener noreferrer">MITRE ATT&amp;CK ↗</a></div></div>
+      <div class="ix-desc" translate="no"><p>${esc(o.d)}</p></div>
+      ${sec("Techniques it covers", o.t.length, matrixHTML(new Map(o.t.map((t) => [t, 1])), { scale: 1 }))}
+      ${top.length ? sec("Threat actors it works against most", top.length, `<div class="ix-chips">${top.map(([g, n]) => chip(ref("groups", g), ` <small>${n}</small>`)).join("")}</div>`) : ""}
+      ${attribution()}</div>`;
+  }
+
+  // ------------------------------------------------------------ Shield report (Markdown): attribution, actors, ATT&CK, defences, timeline
+  function reportMarkdown() {
+    const c = context(), rows = attributionRows(), board = actorBoard(rows), d = defence(scanWeights(c));
+    const cell = (v) => String(v ?? "").replace(/\|/g, "\\|").replace(/\s+/g, " ");
+    const L = [`# Arachne Shield report: ${seedLabel()}`, "", `Generated ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC by ARACHNE. Attribution is a lead for an analyst to confirm, not proof.`, ""];
+    L.push("## Summary", "", `- IOCs attributed: ${rows.filter((r) => r.actors.length).length}`, `- Threat actors: ${board.length}`,
+      `- Malware & tools: ${c.software.size + c.families.size}`, `- ATT&CK techniques: ${c.tech.size} (${c.observed.size} reported for these IOCs)`, "");
+    if (board.length) {
+      L.push("## Threat actors", "", "| Actor | ATT&CK ID | Country | Confidence | IOCs | Evidence |", "|---|---|---|---|---|---|");
+      for (const x of board) { const o = KB.groups[x.g]; L.push(`| ${cell(o.n)} | ${x.g.startsWith("G") ? x.g : "MISP"} | ${cell(o.country || "")} | ${CONF[x.conf][0]} | ${x.iocs.size} | ${cell([...x.why].slice(0, 4).join("; "))} |`); }
+      L.push("");
+    }
+    if (rows.length) {
+      L.push("## Attribution by IOC", "", "| IOC | Type | Confidence | Threat actors | Malware | Sources |", "|---|---|---|---|---|---|");
+      for (const r of rows) L.push(`| ${cell(defang(r.n.value, r.n.type))} | ${cell(r.n.type)} | ${CONF[r.conf][0]} | ${cell(r.actors.map((x) => `${KB.groups[x.g].n} (${CONF[x.conf][0].toLowerCase()})`).join(", ") || "-")} | ${cell([...r.mal.map((sid) => KB.software[sid].n + (r.shared.includes(sid) ? " (shared)" : "")), ...r.fam.map((i) => KB.families[i][0])].join(", ") || "-")} | ${cell([...r.srcs].map(modLabel).join(", "))} |`);
+      L.push("");
+    }
+    if (c.tech.size) {
+      L.push("## MITRE ATT&CK techniques", "");
+      for (const [sn, , name] of KB.tactics) {
+        const ts = [...c.tech.keys()].filter((t) => KB.techniques[t].ta.includes(sn)).sort();
+        if (ts.length) L.push(`**${name}**: ${ts.map((t) => `${t} ${KB.techniques[t].n}${c.observed.has(t) ? " (reported)" : ""}`).join("; ")}`, "");
+      }
+    }
+    if (d.mit.length) {
+      L.push("## Recommended mitigations", "");
+      d.mit.slice(0, 15).forEach((x, i) => L.push(`${i + 1}. **${KB.mitigations[x.id].n}** (${x.id}): covers ${x.t.length} technique${x.t.length === 1 ? "" : "s"}. ${mitUrl(x.id)}`));
+      L.push("");
+    }
+    if (d.dc.length) { L.push("## Log sources to collect", ""); for (const x of d.dc.slice(0, 12)) L.push(`- ${KB.datacomps[x.id].n} (${x.id}): ${x.t.length} techniques`); L.push(""); }
+    const tl = timeline().slice(0, 40);
+    if (tl.length) { L.push("## Timeline (newest first)", ""); for (const e of tl) L.push(`- ${e.d}${e.end ? ` to ${e.end}` : ""}: ${e.what}${e.n ? ` (${defang(e.n.value, e.n.type)})` : ""}`); L.push(""); }
+    L.push("---", "", `Threat data: MITRE ATT&CK${KB.about?.attack_version ? ` v${KB.about.attack_version}` : ""} © The MITRE Corporation, reproduced and distributed with the permission of The MITRE Corporation; MISP Galaxy (CC0). IOC values are defanged.`);
+    return L.join("\n") + "\n";
+  }
+
   // ------------------------------------------------------------ events
   document.addEventListener("click", (e) => {
-    const t = e.target.closest("[data-intel-profile],[data-intel-node],[data-intel-open],[data-intel-tab],[data-intel-lib],[data-intel-goto],[data-intel-scan],[data-intel-retry],[data-intel-leads],[data-intel-copytech],[data-intel-navigator],#intelBack");
+    const t = e.target.closest("[data-intel-profile],[data-intel-node],[data-intel-open],[data-intel-tab],[data-intel-lib],[data-intel-goto],[data-intel-scan],[data-intel-retry],[data-intel-leads],[data-intel-copytech],[data-intel-navigator],[data-intel-library],[data-intel-lens],[data-intel-compare],[data-intel-copydefend],[data-intel-report],#intelBack,#libBack,#libraryBtn");
     if (!t) return;
     e.preventDefault();
     if (t.id === "intelBack") return back();
-    if (t.dataset.intelRetry !== undefined) { failed = null; render(); return load().catch(() => {}); }
+    if (t.id === "libBack") { lib.stack.pop(); return renderLib(); }
+    if (t.id === "libraryBtn" || t.dataset.intelLibrary !== undefined) return openLibrary();
+    if (t.dataset.intelRetry !== undefined) { failed = null; render(); renderLib(); return load().catch(() => {}); }
     if (t.dataset.intelOpen) return open(t.dataset.intelOpen);
     if (t.dataset.intelTab) { view.stack = []; return open(t.dataset.intelTab); }
-    if (t.dataset.intelLib) { view.lib = t.dataset.intelLib; return render(); }
+    if (t.dataset.intelLib) { lib.kind = t.dataset.intelLib; lib.stack = []; return renderLib(); }
+    if (t.dataset.intelLens) { view.lens = t.dataset.intelLens; return render(); }
+    if (t.dataset.intelCompare) {
+      const r = ref("compare", t.dataset.intelCompare);
+      if (inLib(t)) { lib.stack.push(r); renderLib(); $("#libBody").scrollTop = 0; return; }
+      return openProfile(r);
+    }
+    if (t.dataset.intelCopydefend !== undefined) return KB && copy(defendChecklist());
+    if (t.dataset.intelReport !== undefined) {
+      if (!KB || !S.scanId) return;
+      download(`arachne-shield-${(S.scanId || "scan").slice(0, 8)}.md`, reportMarkdown(), "text/markdown");
+      return toast(t_("Shield report saved"));
+    }
     if (t.dataset.intelLeads !== undefined) { view.showLeads = true; return render(); }
     if (t.dataset.intelCopytech !== undefined) return KB && copy([...context().tech.keys()].sort().join("\n"));
     if (t.dataset.intelNavigator !== undefined) {
@@ -592,7 +906,10 @@
     }
     if (t.dataset.intelProfile) {
       const [kind, ...id] = t.dataset.intelProfile.split(":");
-      return load().then(() => openProfile(ref(kind, id.join(":")))).catch(() => {});
+      const r = ref(kind, id.join(":"));
+      // inside the library window, profiles open in the window
+      if (inLib(t)) { lib.stack.push(r); renderLib(); $("#libBody").scrollTop = 0; return; }
+      return load().then(() => openProfile(r)).catch(() => {});
     }
     if (t.dataset.intelNode) {
       const n = S.nodes.get(t.dataset.intelNode);
@@ -602,11 +919,13 @@
       }).catch(() => toast("Threat intel data could not be loaded", "error"));
     }
     if (t.dataset.intelGoto) {
+      $("#libModal")?.classList.remove("open");
       setView("report");
       select(t.dataset.intelGoto);
       return;
     }
     if (t.dataset.intelScan) {
+      $("#libModal")?.classList.remove("open");
       $("#typeSel").value = t.dataset.intelScan;
       $("#seedInput").value = t.dataset.value;
       $("#seedInput").focus();
@@ -615,20 +934,23 @@
   });
   document.addEventListener("input", (e) => {
     if (e.target.dataset?.intelQ === undefined) return;
-    view.q = e.target.value; view.focusQ = true;
-    clearTimeout(view.qt); view.qt = setTimeout(render, 120);
+    lib.q = e.target.value;
+    clearTimeout(lib.qt); lib.qt = setTimeout(() => { const l = $("#ixLibList"); if (l && KB) l.innerHTML = libList(); }, 120);
   });
   document.addEventListener("keydown", (e) => {
     const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || "");
+    if (e.key === "Backspace" && !typing && $("#libModal")?.classList.contains("open") && lib.stack.length) { e.preventDefault(); lib.stack.pop(); return renderLib(); }
     if (typing || $(".modal.open") || e.ctrlKey || e.metaKey || e.altKey) return;
     // I: Shield on and off (back to the report), unless the site turned Shield off
-    if (e.key === "i" && (shown('#viewSeg [data-view="shield"]') || shown('#mnav [data-pane="shield"]') || S.view === "shield")) { e.preventDefault(); if (S.view === "shield") setView("report"); else open(S.scanId ? "scan" : "library"); }
+    if (e.key === "i" && (shown('#viewSeg [data-view="shield"]') || shown('#mnav [data-pane="shield"]') || S.view === "shield")) { e.preventDefault(); if (S.view === "shield") setView("report"); else open("scan"); }
+    // T: the threat library
+    if (e.key === "t" && shown("#libraryBtn")) { e.preventDefault(); openLibrary(); }
     if (e.key === "Backspace" && S.view === "shield" && view.stack.length) { e.preventDefault(); back(); }
   });
   // a new scan starts on the attribution tab again
   let lastScan = null;
   function onView() {
-    if (S.scanId !== lastScan) { lastScan = S.scanId; view.showLeads = false; if (S.scanId && view.tab === "library" && !view.stack.length) view.tab = "scan"; }
+    if (S.scanId !== lastScan) { lastScan = S.scanId; view.showLeads = false; view.lens = "all"; }
     render();
   }
 
@@ -636,10 +958,10 @@
   function deepLink(hp) {
     const v = hp.get("intel");
     if (!v) return;
-    if (["scan", "attack", "matrix", "timeline", "library"].includes(v)) return open(v);
-    const kind = /^G/i.test(v) ? "groups" : /^S\d/i.test(v) ? "software" : /^C\d/i.test(v) ? "campaigns" : /^T\d/i.test(v) ? "techniques" : null;
-    if (kind) { open("library"); load().then(() => { if (KB[kind][v.toUpperCase()] || KB[kind][v]) { view.stack = [ref(kind, KB[kind][v.toUpperCase()] ? v.toUpperCase() : v)]; render(); } }).catch(() => {}); }
+    if (["scan", "attack", "matrix", "defend", "timeline", "library"].includes(v)) return open(v);
+    const kind = /^G/i.test(v) ? "groups" : /^S\d/i.test(v) ? "software" : /^C\d/i.test(v) ? "campaigns" : /^T\d/i.test(v) ? "techniques" : /^M\d/i.test(v) ? "mitigations" : null;
+    if (kind) { openLibrary(); load().then(() => { const id = KB[kind]?.[v.toUpperCase()] ? v.toUpperCase() : v; if (KB[kind]?.[id]) { lib.stack = [ref(kind, id)]; renderLib(); } }).catch(() => {}); }
   }
 
-  window.Intel = { allowed, load, resolve, context, timeline, reportSection, profileButton, open, openProfile, deepLink, render: onView, renderSoon, navigatorLayer, get kb() { return KB; } };
+  window.Intel = { allowed, load, resolve, context, timeline, reportSection, profileButton, open, openProfile, openLibrary, deepLink, render: onView, renderSoon, navigatorLayer, reportMarkdown, get kb() { return KB; } };
 })();

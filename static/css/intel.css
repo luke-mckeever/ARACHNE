@@ -17,7 +17,10 @@
 .ix-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 
 /* ATT&CK matrix: same layout as the sandbox's matrix */
-.ix-matrix { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); align-items: start; gap: 8px 6px; }
+/* One row of tactics, left to right like MITRE's own matrix; scrolls sideways when it doesn't fit. */
+.ix-mxwrap { overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; padding-bottom: 8px; scrollbar-width: thin; }
+.ix-mxwrap:focus-visible { outline: 2px solid var(--line3); outline-offset: 2px; border-radius: 8px; }
+.ix-matrix { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(118px, 1fr); align-items: start; gap: 8px 5px; }
 .ix-matrix .mcol { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .ix-matrix .mcol:not(.on) { opacity: .5; }
 .ix-matrix .mhead { display: flex; justify-content: space-between; align-items: baseline; gap: 4px; padding: 7px 8px; border-radius: 7px; background: var(--bg2); border: 1px solid var(--line); min-height: 46px; }
@@ -28,7 +31,7 @@
 .ix-matrix .mcell:hover { border-color: var(--line3); }
 .ix-matrix .mcell b { font: 600 10.5px var(--mono); color: var(--muted); display: flex; justify-content: space-between; gap: 4px; }
 .ix-matrix .mcell b em { font-style: normal; color: var(--text); }
-.ix-matrix .mcell span { font-size: 11.5px; line-height: 1.3; }
+.ix-matrix .mcell span { font-size: 11.5px; line-height: 1.3; overflow-wrap: anywhere; }
 .ix-matrix .mcell.h1 { border-color: color-mix(in srgb, #2dd4bf 30%, var(--line2)); }
 .ix-matrix .mcell.h2 { border-color: color-mix(in srgb, var(--sus) 50%, transparent); background: color-mix(in srgb, var(--sus) 9%, var(--panel2)); }
 .ix-matrix .mcell.seen { box-shadow: inset 3px 0 0 #2dd4bf; }
@@ -169,7 +172,79 @@
   .sh-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); }
   .sh-ioc { grid-column: 1 / -1; }
 }
+/* Shield header: tabs + report download */
+.sh-head-r { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sh-dl svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+/* ATT&CK lenses */
+.sh-lenses { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin: 0 0 8px; }
+.sh-lens-g { font: 600 9.5px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--dim); margin: 0 2px 0 8px; }
+.sh-lens-g:first-child { margin-left: 0; }
+.sh-lens { font-size: 11.5px; padding: 3px 9px; border-radius: 12px; border: 1px solid var(--line2); background: var(--panel); color: var(--text2); cursor: pointer; }
+.sh-lens:hover { border-color: var(--line3); color: var(--text); }
+.sh-lens.on { background: color-mix(in srgb, #2dd4bf 14%, var(--panel)); border-color: color-mix(in srgb, #2dd4bf 55%, transparent); color: var(--text); }
+.sh-lens.lrep.on { background: color-mix(in srgb, var(--sus) 14%, var(--panel)); border-color: color-mix(in srgb, var(--sus) 55%, transparent); }
+/* Defend */
+.sh-mits { display: flex; flex-direction: column; gap: 6px; }
+.sh-mit { border: 1px solid var(--line2); background: var(--panel); border-radius: var(--r); padding: 9px 12px; }
+.sh-mit-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.sh-mit-h b { font-size: 13.5px; }
+.sh-mit-h a.ix-id { text-decoration: none; } .sh-mit-h a.ix-id:hover { text-decoration: underline; }
+.sh-mit-n { margin-left: auto; font-size: 11.5px; color: var(--muted); }
+.sh-rank { display: inline-grid; place-items: center; min-width: 20px; height: 20px; border-radius: 6px; font: 700 10.5px var(--mono); color: #2dd4bf; background: color-mix(in srgb, #2dd4bf 12%, var(--panel2)); }
+.sh-mit-d { margin: 5px 0 0; font-size: 12px; line-height: 1.5; color: var(--text2); }
+.sh-more { margin-top: 6px; }
+.sh-more > summary { cursor: pointer; font-size: 11.5px; color: var(--muted); list-style: none; }
+.sh-more > summary::before { content: "▸ "; } .sh-more[open] > summary::before { content: "▾ "; }
+.sh-more > summary:hover { color: var(--text); }
+.sh-more > .ix-chips, .sh-more > .sh-mits, .sh-more > .sh-dets, .sh-more > .ix-mxwrap { margin-top: 8px; }
+a.sh-tac { text-decoration: none; }
+.sh-dets { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 6px; }
+.sh-det { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 10px; align-items: baseline; border: 1px solid var(--line2); background: var(--panel); border-radius: var(--r); padding: 8px 10px; }
+.sh-det b { font-size: 12.5px; font-weight: 600; line-height: 1.35; }
+.sh-det .ix-chips { grid-column: 2; }
+.sh-det a.ix-id { text-decoration: none; } .sh-det a.ix-id:hover { text-decoration: underline; }
+/* actor capabilities, similar actors, comparison */
+.sh-plats { margin-top: 10px; }
+.sh-sims { display: flex; flex-direction: column; gap: 4px; }
+.sh-sim { display: grid; grid-template-columns: minmax(150px, 220px) 120px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 6px 10px; border: 1px solid var(--line2); background: var(--panel); border-radius: var(--r); }
+.sh-bar { height: 7px; border-radius: 4px; background: var(--panel3); overflow: hidden; }
+.sh-bar b { display: block; height: 100%; background: #c084fc; border-radius: 4px; }
+.sh-sim-n { font-size: 11.5px; color: var(--muted); min-width: 0; }
+.sh-inscan { border-left: 3px solid #2dd4bf; padding-left: 12px; }
+.sh-vs { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+.sh-vs > span { font: 600 12px var(--mono); color: var(--dim); text-transform: uppercase; }
+.sh-vs .ix-link { font: inherit; }
+.sh-ca { color: #60a5fa !important; } .sh-cb { color: #f472b6 !important; }
+.sh-cmp { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.sh-cmp th, .sh-cmp td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.sh-cmp tbody th { color: var(--muted); font-weight: 500; width: 180px; }
+.sh-cmp2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; }
+.sh-legend { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.sh-key { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 2px solid; margin-left: 6px; }
+.sh-key.both { border-color: #c084fc; background: color-mix(in srgb, #c084fc 25%, transparent); }
+.sh-key.ca { border-color: #60a5fa; } .sh-key.cb { border-color: #f472b6; }
+.ix-matrix .mcell.cmp-both { border-color: #c084fc; background: color-mix(in srgb, #c084fc 16%, var(--panel2)); }
+.ix-matrix .mcell.cmp-a { border-color: color-mix(in srgb, #60a5fa 70%, transparent); background: color-mix(in srgb, #60a5fa 7%, var(--panel2)); }
+.ix-matrix .mcell.cmp-b { border-color: color-mix(in srgb, #f472b6 70%, transparent); background: color-mix(in srgb, #f472b6 7%, var(--panel2)); }
+.ix-chip.mitigations { border-color: color-mix(in srgb, #2dd4bf 45%, var(--line2)); }
+/* threat library window */
+#libModal .modal-h h2 { flex: none; }
+#libModal .lib-sub { flex: 1; min-width: 0; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#libBody .ix-prof-h h2 { margin-top: 0; }
+
 @media (max-width: 900px) {
+  .sh-head-r { width: 100%; }
+  .sh-head-r .sh-tabs { flex: 1; }
+  .sh-dets { grid-template-columns: 1fr; }
+  .sh-sim { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; }
+  .sh-sim .sh-bar { grid-column: 1 / -1; grid-row: 2; }
+  .sh-sim .sh-sim-n { grid-column: 1 / -1; grid-row: 3; }
+  .sh-cmp2 { grid-template-columns: 1fr; }
+  .sh-cmp tbody th { width: 110px; }
+  .sh-mit-n { margin-left: 0; width: 100%; }
+  #libModal .lib-sub { display: none; }
+  #libModal .modal-h h2 { flex: 1; }
+
   .shield { padding: 0 12px 28px; }
   .sh-head { padding: 10px 0 8px; gap: 8px; }
   .sh-logo { width: 32px; height: 32px; border-radius: 8px; }
@@ -184,5 +259,5 @@
   .sh-tac { grid-template-columns: 120px minmax(0, 1fr) 24px; }
   .sh-tech .ix-li { grid-template-columns: 64px minmax(0, 1fr); }
   .rep-sec h3 .sh-acts { width: 100%; margin-top: 6px; }
-  .ix-matrix { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+  .ix-matrix { grid-auto-columns: 112px; }
 }

@@ -8,6 +8,22 @@ All notable changes to ARACHNE. Versions follow [Semantic Versioning](https://se
 
 Each release is tagged in git as `vX.Y.Z`. The running version is shown at the bottom right of the app and printed when the server starts.
 
+## [2.10.0] - 2026-11-15
+
+### Added
+- **Defend** tab in Shield: the MITRE ATT&CK mitigations ranked by how much of the scan's activity they block (techniques a source reported for the IOCs weigh most), the log sources (ATT&CK data components) worth collecting, and MITRE's detection strategies for the scan's techniques. **Copy checklist** copies the mitigations and log sources as a Markdown checklist.
+- **ATT&CK lenses**: show the whole scan, only the techniques reported for the IOCs, or one linked actor, malware or campaign. An actor's lens shows everything it is known to use and marks what other evidence in the scan also points to.
+- **Actor capabilities** in threat actor profiles: techniques per tactic, platforms, malware and tools, how the current scan points to the actor (confidence, IOCs, TTP fit), **similar actors** (shared techniques and distinctive malware, worth ruling out) and the top mitigations against it.
+- **Compare** two actors side by side: overlap, a colour-coded ATT&CK matrix, shared and own malware. From similar actors, or "Compare the top two" on the Attribution tab.
+- **Shield report**: one click downloads a Markdown report of the attribution, actors, ATT&CK techniques, mitigations, log sources and timeline (IOCs defanged).
+- Technique profiles list their mitigations, log sources and detection strategies; mitigations have profiles of their own.
+- `tools/build_threat_kb.py` adds ATT&CK mitigations, detection strategies and data components to the knowledge base.
+
+### Changed
+- The **threat library** is no longer a Shield tab: it has its own window (top bar book icon, or **T**), so every Shield tab is about the scanned IOCs. Profiles opened there stay in the window.
+- **How Shield works** only shows on the Attribution tab.
+- The **MITRE ATT&CK matrix** shows all tactics side by side in one row, like MITRE's own matrix. Scroll sideways to see the rest, on a phone too.
+
 ## [2.9.0] - 2026-11-15
 
 ### Added
