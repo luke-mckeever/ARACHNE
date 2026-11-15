@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/app.css?v=2.3.0">
+<link rel="stylesheet" href="/css/app.css?v=2.4.0">
 <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/layout-base@2.0.1/layout-base.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/cose-base@2.2.0/cose-base.js"></script>
@@ -34,7 +34,7 @@
     <span id="detectHint" class="detect-hint"></span>
     <button type="button" id="addBtn" class="btn ghost icon-btn" title="Add IOC(s) to the current scan instead of starting a new one" disabled>
       <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
-    <button type="button" id="bulkBtn" class="btn ghost icon-btn" title="Bulk scan: paste or upload a list of IOCs (B)">
+    <button type="button" id="bulkBtn" class="btn ghost icon-btn" title="Bulk scan a list of IOCs (B), or extract them from an email, report or logs (X)">
       <svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg></button>
     <button id="scanBtn" class="btn primary"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>Scan</button>
     <button type="button" id="stopBtn" class="btn danger" hidden><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>Stop</button>
@@ -156,6 +156,7 @@
       <dl class="keys" id="keysList">
         <dt><kbd>/</kbd></dt><dd>Type an IOC to scan</dd>
         <dt><kbd>B</kbd></dt><dd>Bulk scan</dd>
+        <dt><kbd>X</kbd></dt><dd>Extract IOCs from an email, report or logs</dd>
         <dt><kbd>C</kbd></dt><dd>Copy all IOCs in the scan</dd>
         <dt><kbd>Shift</kbd> <kbd>C</kbd></dt><dd>Copy IOCs at medium risk and above</dd>
         <dt><kbd>D</kbd></dt><dd>Copy all IOCs defanged (hxxps://evil[.]com)</dd>
@@ -179,15 +180,24 @@
   <div class="modal-box sm">
     <div class="modal-h"><h2>Bulk scan</h2><button class="icon-btn" data-close><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <div class="modal-b bulk">
-      <p class="msg">Paste a list of IOCs, or load or drop a .txt / .csv file. Anything separated by new lines, commas, spaces or semicolons works, and defanged values like <span class="mono">hxxp://</span> and <span class="mono">[.]</span> are fine. You get one combined report, sorted by risk.</p>
+      <div class="seg bulk-mode" id="bulkMode"><button type="button" data-mode="list" class="on" title="Bulk scan a list of IOCs (B)">IOC list</button><button type="button" data-mode="extract" title="Pull every IOC out of an email, a report or logs (X)">Extract from text</button></div>
+      <p class="msg" data-for="extract" hidden>Paste an email (headers too), a threat report, logs or a web page, or load or drop the file. ARACHNE pulls out every IP, domain, URL, email, file hash, CVE and ASN in it, defanged ones too, and merges duplicates. Untick anything you don't want scanned. Private IPs and well-known sites start unticked.</p>
+      <p class="msg" data-for="list">Paste a list of IOCs, or load or drop a .txt / .csv file. Anything separated by new lines, commas, spaces or semicolons works, and defanged values like <span class="mono">hxxp://</span> and <span class="mono">[.]</span> are fine. You get one combined report, sorted by risk.</p>
       <textarea id="bulkText" spellcheck="false" placeholder="185.220.101.1&#10;evil-domain[.]com&#10;hxxps://phish.example/login&#10;44d88612fea8a8f36de82e1278abb02f"></textarea>
       <div class="row bulk-row">
-        <label class="btn sm ghost">Load file…<input type="file" id="bulkFile" accept=".txt,.csv,.log,.ioc,.tsv,.json,text/*" hidden></label>
-        <label class="switch" title="Stray words in a file look like usernames - skip them unless you're scanning usernames"><input type="checkbox" id="bulkSkipUser" checked><i></i><span>Skip usernames</span></label>
+        <label class="btn sm ghost">Load file…<input type="file" id="bulkFile" accept=".txt,.csv,.log,.ioc,.tsv,.json,.jsonl,.eml,.html,.htm,.md,.xml,text/*" hidden></label>
+        <label class="switch" data-for="extract" hidden title="10.x, 192.168.x, 127.0.0.1 and other addresses that aren't on the internet"><input type="checkbox" id="xtPrivate" checked><i></i><span>Leave out private IPs</span></label>
+        <label class="switch" data-for="extract" hidden title="Google, Microsoft, Apple, GitHub, w3.org and other sites found in almost every email and report"><input type="checkbox" id="xtKnown" checked><i></i><span>Leave out well-known sites</span></label>
+        <label class="switch" data-for="list" title="Stray words in a file look like usernames - skip them unless you're scanning usernames"><input type="checkbox" id="bulkSkipUser" checked><i></i><span>Skip usernames</span></label>
         <span id="bulkInfo" class="msg"></span>
       </div>
       <div id="bulkPreview" class="chips"></div>
-      <div class="row" style="justify-content:flex-end"><button type="button" class="btn ghost" data-close>Cancel</button><button type="button" class="btn primary" id="bulkGo" disabled>Scan</button></div>
+      <div id="extractList" class="xlist" data-for="extract" hidden></div>
+      <details id="extractExcl" class="xexcl" data-for="extract" hidden><summary>Always leave out <em></em></summary>
+        <textarea id="extractExclText" spellcheck="false" placeholder="mycompany.com&#10;203.0.113.10&#10;it-support@mycompany.com"></textarea>
+        <p class="msg">One per line. A domain also covers its subdomains, and URLs and emails on it. Your own domains and mail servers belong here. Saved in this browser.</p>
+      </details>
+      <div class="row bulk-foot"><button type="button" class="btn sm ghost" id="xtCopy" data-for="extract" hidden title="Copy the ticked IOCs, one per line">Copy</button><button type="button" class="btn sm ghost" id="xtCopyDef" data-for="extract" hidden title="Copy the ticked IOCs defanged, e.g. hxxps://evil[.]com, safe for tickets and chats">Copy defanged</button><span class="grow"></span><button type="button" class="btn ghost" data-close>Cancel</button><button type="button" class="btn primary" id="bulkGo" disabled>Scan</button></div>
     </div>
   </div>
 </div>
@@ -209,8 +219,9 @@
   </div>
 </div>
 
-<script src="/js/config.js?v=2.3.0"></script>
-<script src="/js/app.js?v=2.3.0"></script>
-<script src="/js/settings.js?v=2.3.0"></script>
+<script src="/js/config.js?v=2.4.0"></script>
+<script src="/js/app.js?v=2.4.0"></script>
+<script src="/js/extract.js?v=2.4.0"></script>
+<script src="/js/settings.js?v=2.4.0"></script>
 </body>
 </html>

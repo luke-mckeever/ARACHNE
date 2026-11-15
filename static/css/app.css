@@ -740,3 +740,47 @@ input[type=range] { accent-color: var(--accent); width: 220px; }
   .brand span { display: none; }
   .rep-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* ---------- extract IOCs from text (bulk scan dialog) ---------- */
+.bulk-mode { align-self: flex-start; }
+.bulk-mode button { padding: 5px 12px; font-weight: 600; font-size: 12px; }
+.bulk .switch span { display: inline; }
+.bulk-foot { gap: 8px; flex-wrap: wrap; }
+.bulk-foot .grow { flex: 1; }
+.bulk-foot .btn[disabled] { opacity: .4; cursor: default; }
+#bulkPreview.xchips .chip { cursor: pointer; }
+.xlist { border: 1px solid var(--line2); border-radius: 8px; background: var(--bg2); max-height: 300px; overflow-y: auto; }
+.xl-tools { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: var(--panel2); border-bottom: 1px solid var(--line); font: 11px var(--mono); color: var(--muted); }
+.xl-tools span { flex: 1; }
+.xrow { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-top: 1px solid var(--line); cursor: pointer; min-height: 30px; }
+.xl-tools + .xrow { border-top: 0; }
+.xrow:hover { background: var(--panel2); }
+.xrow.off .xv { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line3); }
+.xrow input { margin: 0; accent-color: var(--accent); flex: none; }
+.xrow .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.xrow .xty { font: 600 9.5px var(--mono); letter-spacing: .04em; text-transform: uppercase; width: 62px; flex: none; }
+.xrow .xv { font-size: 11.5px; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text2); }
+.xrow em { font: normal 10.5px var(--mono); color: var(--muted); flex: none; }
+.xrow .xwhy { flex: none; font-size: 9.5px; padding: 0 6px; color: var(--muted); }
+.xrow .icon-btn.xs { min-width: 0; width: 22px; height: 22px; padding: 0; flex: none; opacity: .45; }
+.xrow .icon-btn.xs svg { width: 13px; height: 13px; }
+.xrow:hover .icon-btn.xs, .xrow .icon-btn.xs:focus { opacity: 1; }
+.xlist > p.msg { margin: 0; padding: 6px 10px; }
+.xexcl summary { cursor: pointer; font-size: 11.5px; color: var(--text2); font-weight: 600; }
+.xexcl summary em { font-style: normal; color: var(--muted); font-weight: 400; }
+.xexcl textarea { width: 100%; min-height: 70px; margin-top: 8px; resize: vertical; background: var(--bg2); border: 1px solid var(--line2); border-radius: 8px; padding: 8px 10px; font: 12px/1.5 var(--mono); outline: 0; }
+.xexcl p.msg { margin: 6px 0 0; font-size: 11.5px; }
+.rep-extract a { color: var(--text); }
+@media (max-width: 900px) {
+  .xlist { max-height: 42vh; }
+  .xrow { min-height: 38px; }
+  .xrow .xty { width: 48px; }
+  .xrow .icon-btn.xs { opacity: 1; width: 30px; height: 30px; }
+  .xexcl textarea { font-size: 16px; }
+}
+.bulk > * { flex-shrink: 0; }
+.modal-box.sm.xwide { max-width: 780px; max-height: 90vh; }
+.bulk.xmode #bulkText { min-height: 120px; height: 140px; }
+.bulk.xmode #bulkInfo { flex-basis: 100%; text-align: left; order: 9; }
+.bulk.xmode .xlist { max-height: min(300px, 34vh); }
+@media (max-width: 900px) { .bulk.xmode .xlist { max-height: 46vh; } .bulk.xmode > p.msg { font-size: 12px; } }

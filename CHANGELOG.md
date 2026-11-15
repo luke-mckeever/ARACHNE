@@ -8,6 +8,18 @@ All notable changes to ARACHNE. Versions follow [Semantic Versioning](https://se
 
 Each release is tagged in git as `vX.Y.Z`. The running version is shown at the bottom right of the app and printed when the server starts.
 
+## [2.4.0] - 2026-11-15
+
+### Added
+- Extract IOCs from text: a new "Extract from text" tab in the bulk scan dialog (shortcut X, or the link on the start screen). Paste an email with its headers, a threat report, logs or a web page, or load the file (.eml, .html, .txt, .log and more), and every IP, domain, URL, email, file hash, CVE and ASN in it is pulled out, including defanged ones (hxxp, [.], [at], [dot] and the rest). Quoted-printable emails and HTML entities are decoded first.
+- Review before scanning: duplicates are merged with a count, each IOC can be ticked or unticked, a type filter shows one type at a time, and hovering a row shows where it was found. Private and reserved IPs, well-known sites and things that look like file or package names (invoice.zip, com.example.app) start unticked, with the reason shown.
+- "Always leave out" list for your own domains, mail servers and IPs (a domain covers its subdomains and the URLs and emails on it), saved in the browser. Each row has a button to add it.
+- Copy or copy defanged the ticked IOCs straight from the dialog.
+- Pasting an email or a report into the IOC list tab switches to "Extract from text" by itself.
+
+### Fixed
+- Bulk scans no longer split a URL that contains a comma or a semicolon into two values.
+
 ## [2.3.0] - 2026-11-14
 
 ### Added

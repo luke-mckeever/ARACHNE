@@ -757,6 +757,7 @@ function reportEmptyHTML() {
     <h1>Scan an IOC.</h1>
     <p>Paste an IP, domain, URL, file hash, email, username, ASN or CVE above. ARACHNE checks it against every enabled source and builds one report: a verdict from each service, the details behind it, and any related indicators you can pivot on.</p>
     <div class="examples">${CFG.examples.map(([k, v]) => `<button data-ex="${esc(v)}"><b>${k}</b>${esc(v)}</button>`).join("")}</div>
+    <p class="hint rep-extract">Got a phishing email, a threat report or logs? <a href="#" data-open-extract>Extract every IOC from it</a> and scan them in one go.</p>
     <p class="hint">${enabled} of ${S.meta?.modules.length || 0} sources enabled · ${keys} of ${S.meta?.api_keys.length || 0} API keys configured · <a href="#" data-open-settings="keys">Add API keys</a></p>
   </div>`;
 }
@@ -1169,8 +1170,10 @@ function bulkTokens(text) {
   return [...new Set(t.split(/[\s,;|"'<>]+/).map((s) => s.trim()).filter(Boolean))];
 }
 const bulkPreview = debounce(async () => {
+  if (bulkMode() === "extract") return extractPreview(); // "Extract from text" tab: static/js/extract.js
   const toks = bulkTokens($("#bulkText").value), go = $("#bulkGo");
   S.bulkSeeds = [];
+  go.dataset.values = "";
   if (!toks.length) { $("#bulkInfo").textContent = ""; $("#bulkPreview").innerHTML = ""; go.disabled = true; go.textContent = "Scan"; return; }
   let r;
   try { r = await api("/api/detect", { body: { value: toks.slice(0, 5000).join("\n") } }); } catch (e) { $("#bulkInfo").textContent = e.message; return; }
@@ -1183,6 +1186,7 @@ const bulkPreview = debounce(async () => {
     return true;
   });
   S.bulkSeeds = seeds.slice(0, BULK_MAX);
+  go.dataset.values = S.bulkSeeds.map(([, v]) => bulkValue(v)).join("\n"); // the exact list the scan gets (the website's lookup estimate reads it)
   const counts = {}; for (const [t] of S.bulkSeeds) counts[t] = (counts[t] || 0) + 1;
   $("#bulkPreview").innerHTML = Object.entries(counts).map(([t, c]) => `<span class="chip"><i class="dot" style="background:${tc(t)}"></i>${esc(CFG.plural[t] || typeLabel(t))}<em>${c}</em></span>`).join("");
   $("#bulkInfo").textContent = [`${seeds.length} IOC${seeds.length === 1 ? "" : "s"} recognised`, r.invalid.length ? `${r.invalid.length} ignored` : "",
@@ -1203,7 +1207,7 @@ function loadBulkFile(file) {
 async function runBulk() {
   if (!S.bulkSeeds?.length) return;
   $("#bulkModal").classList.remove("open");
-  await startScan(false, S.bulkSeeds.map(([, v]) => v).join("\n"));
+  await startScan(false, S.bulkSeeds.map(([, v]) => bulkValue(v)).join("\n"));
 }
 
 async function startScan(add = false, bulkValue = null) {
@@ -1467,6 +1471,7 @@ function bind() {
   $("#bulkSkipUser").onchange = bulkPreview;
   $("#bulkFile").onchange = (e) => { loadBulkFile(e.target.files[0]); e.target.value = ""; };
   $("#bulkGo").onclick = runBulk;
+  bindExtract();
   $("#bulkText").ondragover = (e) => e.preventDefault();
   $("#bulkText").ondrop = (e) => { if (e.dataTransfer.files[0]) { e.preventDefault(); loadBulkFile(e.dataTransfer.files[0]); } };
   $("#bulkText").onkeydown = (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) runBulk(); };
@@ -1474,6 +1479,7 @@ function bind() {
   $("#report").onclick = (e) => {
     const t = e.target;
     const ex = t.closest("[data-ex]"); if (ex) { $("#seedInput").value = ex.dataset.ex; updateDetect(); $("#seedInput").focus(); return; }
+    if (t.closest("[data-open-extract]")) { e.preventDefault(); return openExtract(); }
     const os = t.closest("[data-open-settings]"); if (os) { e.preventDefault(); return openSettings(os.dataset.openSettings); }
     const vw = t.closest("[data-view]"); if (vw) return setView(vw.dataset.view);
     const cp = t.closest("[data-copy]"); if (cp) return copy(cp.dataset.copy);
@@ -1589,7 +1595,8 @@ function bind() {
     else if (e.key === "c") copyIocs();
     else if (e.key === "C") copyIocs(true);
     else if (e.key === "d") copyIocs(false, true);
-    else if (e.key === "b" && shown("#bulkBtn")) openBulk();
+    else if (e.key === "b" && shown("#bulkBtn")) { setBulkMode("list"); openBulk(); }
+    else if (e.key === "x" && shown("#bulkBtn")) openExtract();
     else if (e.key === "r" && shown("#historyBtn")) openHistory();
     else if (e.key === "s") openSettings();
     else if (e.key === "e" && shown("#exportBtn")) { closeMenus(); $("#exportMenu").classList.add("open"); S.menuAt = Date.now(); }
