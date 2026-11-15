@@ -8,6 +8,27 @@ All notable changes to ARACHNE. Versions follow [Semantic Versioning](https://se
 
 Each release is tagged in git as `vX.Y.Z`. The running version is shown at the bottom right of the app and printed when the server starts.
 
+## [2.9.0] - 2026-11-15
+
+### Added
+- **Arachne Shield**: a new **Shield** tab next to Report and Graph (and in the bottom bar on phones), a full page for threat actor attribution, MITRE ATT&CK mapping and timelines. It replaces the Threat intel window: the shield button at the top is gone, and **I** now switches to Shield and back. Four tabs:
+  - **Attribution**: every IOC in the scan with its threat actors, malware, campaigns and technique count, a confidence for each actor link, the actors ranked by how strong the evidence is, and the shared malware that was left out.
+  - **ATT&CK**: the matrix for the whole scan, a technique list, **Copy IDs**, and a **Navigator layer** download for the MITRE ATT&CK Navigator.
+  - **Timeline** and **Library**: as in the old window. Profiles open inside the page, with a Back button (or Backspace).
+- **How Shield works**: a short explanation at the bottom of the Shield page of where the data comes from and how IOCs are attributed.
+- `window.ArachneShieldGate`: a site built on ARACHNE (such as the website) can limit Shield to some accounts. The app itself has no accounts, so Shield is always open there.
+- Deep links: `#view=shield`, plus the existing `#intel=scan`, `#intel=attack`, `#intel=timeline`, `#intel=library` and `#intel=G0016`.
+- Shield and the report's Threat context are translated into all 11 interface languages (threat actor, malware and technique names stay as published).
+
+### Changed
+- **Tighter attribution**. Only evidence about the IOC itself counts now, with a confidence for each actor:
+  - **High**: a source named the actor and a second source, or malware or a campaign that belongs to the actor, agrees.
+  - **Medium**: one source named the actor, or named a campaign MITRE ATT&CK attributes to it.
+  - **Low**: the IOC's malware is used by three actors or fewer in MITRE ATT&CK.
+  - Malware used by more than three actors, and tools (Cobalt Strike, Mimikatz, remote access tools), no longer attribute anything on their own. Before, one Cobalt Strike link listed some 30 "known users"; now it is shown as shared malware, and the actors that use it are only listed if you ask.
+  - Campaigns only count when a source named them, not every campaign that ever used the same malware.
+- The report's **Threat context** uses the same rules: "Attributed to" shows actors with their confidence, and the long "Known users" list is gone.
+
 ## [2.8.0] - 2026-11-15
 
 ### Added

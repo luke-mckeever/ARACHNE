@@ -8,7 +8,9 @@
   const KIND = { groups: "Threat actor", software: "Malware / tool", campaigns: "Campaign", techniques: "ATT&CK technique", family: "Malware family" };
   const KIND_TYPE = { groups: "actor", software: "malware", campaigns: "campaign", techniques: "technique", family: "malware" };
   let KB = null, loading = null, failed = null;
-  const view = { tab: "scan", stack: [], q: "", lib: "groups" };
+  const t_ = (s, v) => (typeof window.t === "function" ? window.t(s, v) : s);
+  const view = { tab: "scan", stack: [], q: "", lib: "groups", showLeads: false };
+  const SHIELD_SVG = '<svg viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg>';
 
   const norm = (s) => String(s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
   const attackUrl = (kind, id) => kind === "techniques" ? `https://attack.mitre.org/techniques/${id.replace(".", "/")}/`
@@ -48,7 +50,7 @@
   }
   function refresh() {
     try { renderDetails(); } catch { /* app not ready */ }
-    if ($("#intelModal")?.classList.contains("open")) render();
+    if (S.view === "shield") render();
   }
 
   // ------------------------------------------------------------ matching (same rules as osint/modules/attack.py)
@@ -114,7 +116,7 @@
   }
 
   // ------------------------------------------------------------ small pieces
-  const chip = (ref, extra = "") => `<button class="ix-chip ${ref.kind}" data-intel-profile="${esc(ref.kind)}:${esc(ref.id)}" title="${esc(KIND[ref.kind])}${/^[GSCT]\d/.test(ref.id) ? " · " + esc(ref.id) : ""}">${esc(nameOf(ref))}${extra}</button>`;
+  const chip = (ref, extra = "") => `<button translate="no" class="ix-chip ${ref.kind}" data-intel-profile="${esc(ref.kind)}:${esc(ref.id)}" title="${esc(KIND[ref.kind])}${/^[GSCT]\d/.test(ref.id) ? " · " + esc(ref.id) : ""}">${esc(nameOf(ref))}${extra}</button>`;
   const ref = (kind, id) => ({ kind, id });
   const listChips = (kind, ids, max = 40) => ids.length ? ids.slice(0, max).map((id) => chip(ref(kind, id))).join("") + (ids.length > max ? `<span class="msg"> +${ids.length - max} more</span>` : "") : '<span class="msg">None recorded</span>';
   const sortBy = (kind, ids) => [...ids].sort((a, b) => (KB[kind][a]?.n || a).localeCompare(KB[kind][b]?.n || b));
@@ -124,7 +126,7 @@
     const byTac = new Map(KB.tactics.map(([s]) => [s, []]));
     for (const [t, v] of counts) for (const ta of KB.techniques[t]?.ta || []) byTac.get(ta)?.push([t, typeof v === "number" ? v : v.size, v]);
     const max = scale || Math.max(1, ...[...counts.values()].map((v) => typeof v === "number" ? v : v.size));
-    return `<div class="ix-matrix" ${title ? `aria-label="${esc(title)}"` : ""}>${KB.tactics.map(([s, , name]) => {
+    return `<div class="ix-matrix" translate="no" ${title ? `aria-label="${esc(title)}"` : ""}>${KB.tactics.map(([s, , name]) => {
       const cells = byTac.get(s).sort((a, b) => (observed ? observed.has(b[0]) - observed.has(a[0]) : 0) || b[1] - a[1] || a[0].localeCompare(b[0]));
       return `<div class="mcol ${cells.length ? "on" : ""}"><div class="mhead"><b>${esc(name)}</b><span>${cells.length || ""}</span></div>${cells.map(([t, n, v]) => {
         const lvl = n >= 3 && n / max > 0.66 ? 3 : n >= 2 ? 2 : 1;
@@ -150,18 +152,26 @@
     const c = context(linked);
     if (!c.nodes.size) return `<div class="rep-sec ix-sec"><h3>Threat context</h3><div class="msg">No ATT&amp;CK or threat actor profile matches ${linked.map((x) => esc(x.value)).join(", ")}.</div></div>`;
     const direct = [...c.nodes.values()];
-    const actors = [...c.groups.keys()];
-    const directActors = actors.filter((g) => c.groups.get(g));
-    const knownActors = actors.filter((g) => !c.groups.get(g));
-    return `<div class="rep-sec ix-sec"><h3>Threat context <em>${direct.length}</em><button class="btn xs ghost" data-intel-open="scan" title="ATT&CK matrix, actors and timeline for the whole scan">ATT&amp;CK view</button></h3>
+    let actorRows = "", note = "";
+    if (KB_TYPES.includes(n.type)) {
+      // the indicator is itself malware / an actor: its known users only when the malware is distinctive
+      const r = c.nodes.get(n.id);
+      const o = r && r.kind === "software" ? KB.software[r.id] : null;
+      if (o && o.g.length && !sharedMal(o)) actorRows = `<div class="ix-row"><span class="ix-lbl">Used by</span><div class="ix-chips">${sortBy("groups", o.g).map((g) => chip(ref("groups", g))).join("")}</div></div>`;
+      else if (o && o.g.length) note = `<p class="msg ix-note">${esc(o.n)}: used by ${o.g.length} actors in MITRE ATT&amp;CK, too widely shared to point to one.</p>`;
+    } else {
+      const a = attributeIoc(n);
+      if (a.actors.length) actorRows = `<div class="ix-row"><span class="ix-lbl">Attributed to</span><div class="ix-chips">${a.actors.slice(0, 8).map((x) => chip(ref("groups", x.g), ` <small class="sh-c-${x.conf}">${esc(t_(CONF[x.conf][0]).toLowerCase())}</small>`)).join("")}${a.actors.length > 8 ? `<span class="msg">+${a.actors.length - 8}</span>` : ""}</div></div>`;
+      if (a.shared.length) note = `<p class="msg ix-note"><span translate="no">${esc(a.shared.map((s) => KB.software[s].n).join(", "))}</span>: <span>shared by many actors, so not used for attribution.</span></p>`;
+    }
+    const camps = [...c.campaigns].filter(([, node]) => node).map(([x]) => x);
+    return `<div class="rep-sec ix-sec"><h3>Threat context <em>${direct.length}</em><button class="btn xs ghost" data-intel-open="scan" title="Open Shield: attribution, ATT&CK matrix and timeline for the whole scan">Shield</button></h3>
       <div class="ix-ctx">
         <div class="ix-row"><span class="ix-lbl">Linked</span><div class="ix-chips">${direct.map((r) => chip(r)).join("")}</div></div>
-        ${directActors.length ? `<div class="ix-row"><span class="ix-lbl">Attributed to</span><div class="ix-chips">${directActors.map((g) => chip(ref("groups", g))).join("")}</div></div>` : ""}
-        ${knownActors.length ? `<div class="ix-row"><span class="ix-lbl">Known users</span><div class="ix-chips">${sortBy("groups", knownActors).slice(0, 10).map((g) => chip(ref("groups", g))).join("")}${knownActors.length > 10 ? `<span class="msg">+${knownActors.length - 10} more</span>` : ""}</div></div>` : ""}
-        ${c.campaigns.size ? `<div class="ix-row"><span class="ix-lbl">Campaigns</span><div class="ix-chips">${[...c.campaigns.keys()].slice(0, 8).map((x) => chip(ref("campaigns", x))).join("")}</div></div>` : ""}
-        ${c.tech.size ? `<div class="ix-row"><span class="ix-lbl">Techniques</span><div class="ix-chips"><button class="ix-chip techniques" data-intel-open="scan">${c.tech.size} ATT&amp;CK technique${c.tech.size === 1 ? "" : "s"} across ${new Set([...c.tech.keys()].flatMap((t) => KB.techniques[t].ta)).size} tactics</button></div></div>` : ""}
-      </div>
-      ${knownActors.length ? `<p class="msg ix-note">"Known users" are actors that MITRE ATT&amp;CK records as using this malware. It is context, not proof that this IOC belongs to them.</p>` : ""}</div>`;
+        ${actorRows}
+        ${camps.length ? `<div class="ix-row"><span class="ix-lbl">Campaigns</span><div class="ix-chips">${camps.slice(0, 8).map((x) => chip(ref("campaigns", x))).join("")}</div></div>` : ""}
+        ${c.tech.size ? `<div class="ix-row"><span class="ix-lbl">Techniques</span><div class="ix-chips"><button class="ix-chip techniques" data-intel-open="attack">${c.tech.size} ATT&amp;CK technique${c.tech.size === 1 ? "" : "s"} across ${new Set([...c.tech.keys()].flatMap((t) => KB.techniques[t].ta)).size} tactics</button></div></div>` : ""}
+      </div>${note}</div>`;
   }
 
   // ------------------------------------------------------------ timeline
@@ -213,69 +223,247 @@
     if (!ev.length) return `<div class="empty-note">${empty}</div>`;
     const years = {}; for (const e of ev) years[e.d.slice(0, 4)] = (years[e.d.slice(0, 4)] || 0) + 1;
     const ys = Object.keys(years).sort(), max = Math.max(...Object.values(years));
-    const bar = ys.length > 1 ? `<div class="ix-years">${ys.map((y) => `<div title="${y}: ${years[y]} event${years[y] === 1 ? "" : "s"}"><i style="height:${Math.max(8, (years[y] / max) * 100)}%"></i><span>${y.slice(2)}</span></div>`).join("")}</div>` : "";
+    const bar = ys.length > 1 ? `<div class="ix-years" translate="no">${ys.map((y) => `<div title="${y}: ${years[y]} event${years[y] === 1 ? "" : "s"}"><i style="height:${Math.max(8, (years[y] / max) * 100)}%"></i><span>${y.slice(2)}</span></div>`).join("")}</div>` : "";
     let lastY = null;
     return bar + `<div class="ix-tl">${ev.map((e) => {
       const y = e.d.slice(0, 4), head = y !== lastY ? `<div class="ix-tl-y">${y}</div>` : "";
       lastY = y;
       const node = e.n ? `<button class="ix-tl-node" data-intel-goto="${esc(e.n.id)}" title="Show ${esc(e.n.value)} in the report"><span style="color:${tc(e.n.type)}">${esc(glyph(e.n.type))}</span>${esc(e.n.value)}</button>` : "";
-      return head + `<div class="ix-tl-e ${e.campaign ? "camp" : ""}"><time>${esc(e.d)}${e.end ? ` → ${esc(e.end)}` : ""}</time><div><b>${e.campaign ? `<button class="ix-link" data-intel-profile="campaigns:${esc(e.campaign)}">${esc(e.what)}</button>` : esc(e.what)}</b>
+      return head + `<div class="ix-tl-e ${e.campaign ? "camp" : ""}" translate="no"><time>${esc(e.d)}${e.end ? ` → ${esc(e.end)}` : ""}</time><div><b>${e.campaign ? `<button class="ix-link" data-intel-profile="campaigns:${esc(e.campaign)}">${esc(e.what)}</button>` : esc(e.what)}</b>
         <div class="ix-tl-meta">${node}${e.m ? `<span>${esc(modLabel(e.m))}</span>` : ""}${e.sub ? `<span>${esc(e.sub)}</span>` : ""}</div></div></div>`;
     }).join("")}</div>`;
   }
 
-  // ------------------------------------------------------------ the modal: this scan / timeline / library / profiles
+  // ------------------------------------------------------------ the Shield page: attribution / ATT&CK / timeline / library / profiles
+  // Shield is a view of its own next to Report and Graph (app.js setView("shield")); everything is drawn into #intelBody.
+  const TABS = ["scan", "attack", "timeline", "library"];
+  const scroller = () => $("#shieldWrap");
+  // A site built on ARACHNE can limit Shield to some accounts: window.ArachneShieldGate() returns false (and
+  // explains why) when this user may not open it. The app itself has no accounts, so Shield is always open there.
+  function allowed() {
+    try { return typeof window.ArachneShieldGate !== "function" || window.ArachneShieldGate() !== false; } catch { return true; }
+  }
   function open(tab = null, prof = null) {
-    if (tab) view.tab = tab;
+    if (S.view !== "shield" && !allowed()) return;
+    if (tab === "matrix") tab = "attack";
+    if (tab && TABS.includes(tab)) view.tab = tab;
     view.stack = prof ? [prof] : [];
-    $("#intelModal").classList.add("open");
-    render();
+    if (S.view !== "shield") setView("shield"); else render();
+    const sc = scroller(); if (sc) sc.scrollTop = 0;
     load().catch(() => {});
   }
   function openProfile(r) {
-    if (!$("#intelModal").classList.contains("open")) { view.stack = []; $("#intelModal").classList.add("open"); }
-    view.stack.push(r);
-    render();
-    $("#intelBody").scrollTop = 0;
+    if (S.view !== "shield" && !allowed()) return;
+    if (S.view !== "shield") { view.stack = [r]; setView("shield"); }
+    else { view.stack.push(r); render(); }
+    const sc = scroller(); if (sc) sc.scrollTop = 0;
+  }
+  function back() {
+    view.stack.pop(); render();
+    const sc = scroller(); if (sc) sc.scrollTop = 0;
+  }
+  // scan events arrive in bursts: redraw the page at most a few times a second, and never under the user's typing
+  let soon = null;
+  function renderSoon() {
+    if (soon) return;
+    soon = setTimeout(() => { soon = null; if (S.view === "shield") render(); }, 400);
   }
   function render() {
     const body = $("#intelBody");
+    if (!body) return;
     const prof = view.stack[view.stack.length - 1];
     $$("#intelTabs [data-intel-tab]").forEach((b) => b.classList.toggle("on", !prof && b.dataset.intelTab === view.tab));
     $("#intelBack").hidden = !prof;
     if (!KB) {
-      body.innerHTML = failed ? `<div class="empty-note">Threat intel data could not be loaded (${esc(failed)}). <button class="btn xs" data-intel-retry>Try again</button></div>`
+      load().catch(() => {});
+      body.innerHTML = failed ? `<div class="empty-note">Threat intel data could not be loaded ({err}). <button class="btn xs" data-intel-retry>Try again</button></div>`.replace("{err}", esc(failed))
         : '<div class="src-running"><span class="spinner"></span>Loading MITRE ATT&amp;CK and threat actor data…</div>';
       return;
     }
-    const st = body.scrollTop;
-    body.innerHTML = prof ? profileHTML(prof) : view.tab === "timeline" ? scanTimelineHTML() : view.tab === "library" ? libraryHTML() : scanHTML();
-    if (!prof) body.scrollTop = st;
+    // library search: a scan event must not wipe what is being typed
+    const q = $("[data-intel-q]", body);
+    if (!prof && view.tab === "library" && q && document.activeElement === q && !view.focusQ) return;
+    const sc = scroller(), st = sc ? sc.scrollTop : 0;
+    body.innerHTML = prof ? profileHTML(prof) : view.tab === "timeline" ? scanTimelineHTML() : view.tab === "library" ? libraryHTML() : view.tab === "attack" ? attackHTML() : scanHTML();
+    if (sc) sc.scrollTop = st;
     if (view.tab === "library" && !prof) { const i = $("[data-intel-q]", body); if (i && document.activeElement !== i && view.focusQ) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); view.focusQ = false; } }
   }
+
+  // ------------------------------------------------------------ attribution: which threat actors an IOC points to, and how sure that is
+  // Only evidence about the IOC itself counts:
+  //   high    a source named the actor and a second source agrees (or the IOC's malware / campaign is that actor's)
+  //   medium  one source named the actor, or named a campaign that MITRE ATT&CK attributes to it
+  //   low     the IOC's malware is distinctive: MITRE ATT&CK knows of at most RARE actors using it
+  // Malware many actors share (Cobalt Strike, Mimikatz, tools in general) attributes nothing: it is listed as shared.
+  const RARE = 3;
+  const CONF = {
+    high: ["High", "A source named this actor and another piece of evidence agrees: a second source, or malware or a campaign that belongs to the actor"],
+    medium: ["Medium", "One source named this actor, or named a campaign MITRE ATT&CK attributes to it"],
+    low: ["Low", "The IOC's malware is used by only a few actors according to MITRE ATT&CK. A lead, not proof"],
+    none: ["Not attributed", "Sources linked this IOC to malware or techniques that many actors share, so it doesn't point to anyone"],
+  };
+  const RANK = { high: 3, medium: 2, low: 1, none: 0 };
+  const sharedMal = (o) => o.k === "tool" || o.g.length > RARE;
+  function attributeIoc(n) {
+    const named = new Map(), namedCamps = new Map(), mal = new Map(), fam = new Map(), tech = new Set(), srcs = new Set();
+    for (const e of S.edges.values()) {
+      const oid = e.source === n.id ? e.target : e.target === n.id ? e.source : null;
+      const o = oid && S.nodes.get(oid);
+      if (!o || !KB_TYPES.includes(o.type)) continue;
+      const r = resolve(o.type, o.value);
+      if (!r) continue;
+      const mods = new Set([...(e.modules || []), o.source].filter((m) => m && m !== "mitre_attack" && m !== "user"));
+      mods.forEach((m) => srcs.add(m));
+      const add = (map, k) => { if (!map.has(k)) map.set(k, new Set()); mods.forEach((m) => map.get(k).add(m)); };
+      if (r.kind === "groups") add(named, r.id);
+      else if (r.kind === "campaigns") add(namedCamps, r.id);
+      else if (r.kind === "software") add(mal, r.id);
+      else if (r.kind === "family") add(fam, r.id);
+      else if (r.kind === "techniques") tech.add(r.id);
+    }
+    const actors = new Map();
+    const put = (g, conf, why) => {
+      if (!KB.groups[g]) return;
+      const a = actors.get(g) || { g, conf: "none", why: [] };
+      if (RANK[conf] > RANK[a.conf]) a.conf = conf;
+      if (!a.why.includes(why)) a.why.push(why);
+      actors.set(g, a);
+    };
+    for (const [g, mods] of named) put(g, mods.size >= 2 ? "high" : "medium", `named by ${[...mods].map(modLabel).join(", ") || "a source"}`);
+    for (const [cid, mods] of namedCamps) for (const g of KB.campaigns[cid].g) put(g, named.has(g) ? "high" : "medium", `campaign ${KB.campaigns[cid].n}`);
+    const shared = [];
+    for (const sid of mal.keys()) {
+      const o = KB.software[sid];
+      if (sharedMal(o)) { shared.push(sid); for (const g of o.g) if (actors.has(g)) put(g, "high", `uses ${o.n}`); continue; }
+      for (const g of o.g) put(g, named.has(g) ? "high" : "low", `uses ${o.n}`);
+    }
+    const list = [...actors.values()].sort((a, b) => RANK[b.conf] - RANK[a.conf] || KB.groups[a.g].n.localeCompare(KB.groups[b.g].n));
+    const conf = list.length ? list[0].conf : "none";
+    return { n, actors: list, conf, named, namedCamps, mal: [...mal.keys()], fam: [...fam.keys()], shared, tech, srcs };
+  }
+  // every IOC in the scan with a malware / actor / campaign / technique link
+  function attributionRows() {
+    const rows = [];
+    for (const n of S.nodes.values()) {
+      if (KB_TYPES.includes(n.type)) continue;
+      const a = attributeIoc(n);
+      if (!a.actors.length && !a.mal.length && !a.fam.length && !a.tech.size && !a.namedCamps.size) continue;
+      a.c = context(linkedKbNodes(n).filter((x) => x.id !== n.id));
+      a.rk = typeof riskOf === "function" ? riskOf(n.id) : { score: null };
+      rows.push(a);
+    }
+    return rows.sort((a, b) => RANK[b.conf] - RANK[a.conf] || ((b.rk.score ?? -1) - (a.rk.score ?? -1)) || a.n.value.localeCompare(b.n.value));
+  }
+  // actor -> the IOCs pointing at it, with the best confidence
+  function actorBoard(rows) {
+    const a = new Map();
+    for (const r of rows) for (const x of r.actors) {
+      const b = a.get(x.g) || { g: x.g, conf: "none", iocs: new Set(), why: new Set() };
+      if (RANK[x.conf] > RANK[b.conf]) b.conf = x.conf;
+      b.iocs.add(r.n.id); x.why.forEach((w) => b.why.add(w));
+      a.set(x.g, b);
+    }
+    return [...a.values()].sort((x, y) => RANK[y.conf] - RANK[x.conf] || y.iocs.size - x.iocs.size || KB.groups[x.g].n.localeCompare(KB.groups[y.g].n));
+  }
+  const confPill = (c) => `<span class="sh-pill ${c}" title="${esc(CONF[c][1])}">${CONF[c][0]}</span>`;
+  const iocBtn = (x) => `<button class="ix-chip ioc" data-intel-goto="${esc(x.id)}" title="Show ${esc(x.value)} in the report"><span style="color:${tc(x.type)}">${esc(glyph(x.type))}</span> <span translate="no">${esc(x.value)}</span></button>`;
+
   function scanHTML() {
-    if (!S.scanId) return `<div class="empty-note">Scan an IOC first: malware families, threat actors and ATT&amp;CK techniques the sources link it to show up here. Or browse the <button class="btn xs" data-intel-tab="library">Library</button>.</div>`;
+    if (!S.scanId) return `<div class="sh-empty"><div class="sh-empty-ic">${SHIELD_SVG}</div><h2>Nothing to attribute yet</h2>
+      <p>Scan an IOC and Shield shows which threat actors the sources tie it to and how sure that is, the malware and campaigns involved, the ATT&amp;CK techniques and a timeline of everything the sources dated.</p>
+      <p>You can also scan an actor, a malware family or an ATT&amp;CK ID directly (for example <span class="mono">APT29</span>, <span class="mono">Emotet</span> or <span class="mono">T1059.001</span>), or browse the library.</p>
+      <p><button class="btn sm" data-intel-tab="library">Browse the library</button></p></div>`;
     const c = context();
     const kb = kbNodes();
     if (!c.nodes.size) {
       return `<div class="empty-note">${kb.length ? `None of the ${kb.length} malware / actor indicators in this scan match a profile.` : "No source has linked this scan to a malware family, threat actor or ATT&CK technique yet."} Sources that do: ThreatFox, MalwareBazaar, URLhaus, VirusTotal, AlienVault OTX, Hybrid Analysis. You can also scan a family name, an actor or a technique ID (for example <span class="mono">T1059.001</span>) directly.</div>`
         + `<p style="text-align:center"><button class="btn sm ghost" data-intel-tab="library">Browse the library</button></p>`;
     }
-    const tile = (v, label) => `<div class="rep-tile ${v ? "" : "zero"}"><b>${v}</b><span>${label}</span></div>`;
-    const directG = [...c.groups].filter(([, n]) => n).map(([g]) => g), knownG = [...c.groups].filter(([, n]) => !n).map(([g]) => g);
+    const rows = attributionRows();
+    const iocs = [...S.nodes.values()].filter((n) => !KB_TYPES.includes(n.type) && (n.root || S.results.has(n.id)));
+    const tile = (v, label, tab = "") => `<${tab ? `button data-intel-tab="${tab}"` : "div"} class="rep-tile ${v ? "" : "zero"}"><b>${v}</b><span>${label}</span></${tab ? "button" : "div"}>`;
     const sw = [...c.software.keys()];
-    return `<div class="rep-tiles ix-tiles">${tile(sw.length + c.families.size, "Malware & tools")}${tile(c.groups.size, "Threat actors")}${tile(c.campaigns.size, "Campaigns")}${tile(c.tech.size, "ATT&CK techniques")}</div>
-      <div class="rep-sec"><h3>Malware &amp; tools <em>${sw.length + c.families.size}</em></h3><div class="ix-cards">${sw.map((s) => profileCard(ref("software", s), c.software.get(s))).join("")}${[...c.families].map(([i, n]) => profileCard(ref("family", i), n)).join("")}</div></div>
-      ${directG.length ? `<div class="rep-sec"><h3>Threat actors linked by sources <em>${directG.length}</em></h3><div class="ix-cards">${directG.map((g) => profileCard(ref("groups", g), c.groups.get(g))).join("")}</div></div>` : ""}
-      ${knownG.length ? `<div class="rep-sec"><h3>Known users of this malware <em>${knownG.length}</em></h3><p class="msg ix-note">Actors MITRE ATT&amp;CK records as using the malware above. Many share commodity tools, so treat this as a lead, not attribution.</p><div class="ix-chips">${sortBy("groups", knownG).map((g) => chip(ref("groups", g), KB.groups[g].country ? ` <small>${esc(KB.groups[g].country)}</small>` : "")).join("")}</div></div>` : ""}
-      ${c.campaigns.size ? `<div class="rep-sec"><h3>Campaigns <em>${c.campaigns.size}</em></h3><div class="ix-chips">${[...c.campaigns.keys()].map((x) => chip(ref("campaigns", x), KB.campaigns[x].first ? ` <small>${esc(KB.campaigns[x].first.slice(0, 4))}</small>` : "")).join("")}</div></div>` : ""}
-      ${c.tech.size ? `<div class="rep-sec"><h3>MITRE ATT&amp;CK matrix <em>${c.tech.size}</em></h3><p class="msg ix-note">Techniques the malware, actors and campaigns above are known to use${c.observed.size ? `, plus ${c.observed.size} that sources reported for these IOCs` : ""}. Darker cells are shared by more of them. Click one for its profile.</p>${matrixHTML(c.tech, { observed: c.observed })}</div>` : ""}
+    const board = actorBoard(rows);
+    // actors scanned directly (APT29 typed in the search box) are shown too
+    for (const [g, node] of c.groups) if (node && node.root && !board.some((x) => x.g === g)) board.unshift({ g, conf: "scanned", iocs: new Set(), why: new Set() });
+    const attributed = rows.filter((r) => r.actors.length);
+    const sharedAll = new Map();
+    for (const r of rows) for (const s of r.shared) { if (!sharedAll.has(s)) sharedAll.set(s, new Set()); sharedAll.get(s).add(r.n.id); }
+    const actorRow = (x) => {
+      const o = KB.groups[x.g];
+      return `<div class="sh-actor"><button translate="no" class="sh-actor-n" data-intel-profile="groups:${esc(x.g)}"><b>${esc(o.n)}</b>${o.country ? `<span class="ix-cc">${esc(o.country)}</span>` : ""}<span class="ix-id">${esc(x.g.startsWith("G") ? x.g : "MISP")}</span></button>
+        <div class="sh-actor-m">${x.conf === "scanned" ? '<span class="sh-pill high">Scanned</span>' : confPill(x.conf)} ${x.iocs.size ? `<span class="msg">${x.iocs.size === 1 ? "1 IOC" : `${x.iocs.size} IOCs`}</span>` : ""}</div>
+        ${x.why.size ? `<div class="ix-card-a" translate="no">${esc([...x.why].slice(0, 4).join(" · "))}</div>` : ""}</div>`;
+    };
+    const row = (r) => {
+      const camps = [...r.c.campaigns].filter(([, node]) => node).map(([x]) => x);
+      const malRefs = [...r.mal.map((s) => ref("software", s)), ...r.fam.map((i) => ref("family", i))];
+      return `<div class="sh-row">
+        <div class="sh-ioc">${typeof riskBadge === "function" && r.rk.grade ? riskBadge(r.rk) : ""}${iocBtn(r.n)}</div>
+        <div class="sh-cell"><span class="ix-lbl">Confidence</span>${confPill(r.conf)}${r.srcs.size ? `<span class="msg sh-src" translate="no">${[...r.srcs].map((m) => esc(modLabel(m))).join(", ")}</span>` : ""}</div>
+        <div class="sh-cell"><span class="ix-lbl">Threat actors</span><div class="ix-chips">${r.actors.length ? r.actors.slice(0, 4).map((x) => chip(ref("groups", x.g), ` <small class="sh-c-${x.conf}">${esc(t_(CONF[x.conf][0]).toLowerCase())}</small>`)).join("") + (r.actors.length > 4 ? `<span class="msg">+${r.actors.length - 4}</span>` : "") : '<span class="msg">–</span>'}</div></div>
+        <div class="sh-cell"><span class="ix-lbl">Malware</span><div class="ix-chips">${malRefs.length ? malRefs.slice(0, 4).map((m) => chip(m, m.kind === "software" && r.shared.includes(m.id) ? ` <small title="Used by ${KB.software[m.id].g.length} actors in MITRE ATT&CK">shared</small>` : "")).join("") : '<span class="msg">–</span>'}</div></div>
+        <div class="sh-cell"><span class="ix-lbl">Campaigns</span><div class="ix-chips">${camps.length ? camps.slice(0, 3).map((x) => chip(ref("campaigns", x))).join("") : '<span class="msg">–</span>'}</div></div>
+        <div class="sh-cell"><span class="ix-lbl">ATT&amp;CK</span>${r.c.tech.size ? `<button class="ix-chip techniques" data-intel-tab="attack">${r.c.tech.size === 1 ? "1 technique" : `${r.c.tech.size} techniques`}</button>` : '<span class="msg">–</span>'}</div></div>`;
+    };
+    const leads = view.showLeads ? [...sharedAll.keys()].flatMap((s) => KB.software[s].g).filter((g, i, a) => a.indexOf(g) === i && !board.some((x) => x.g === g)) : [];
+    return `<div class="rep-tiles ix-tiles sh-tiles">${tile(`${attributed.length}<small>/${iocs.length}</small>`, "IOCs attributed")}${tile(board.length, "Threat actors")}${tile(sw.length + c.families.size, "Malware & tools")}${tile([...c.campaigns.values()].filter(Boolean).length, "Campaigns")}${tile(c.tech.size, "ATT&CK techniques", "attack")}</div>
+      ${rows.length ? `<div class="rep-sec"><h3>Attribution by IOC <em>${rows.length}</em></h3>
+        <p class="msg ix-note"><span>How each IOC in this scan ties to a threat actor, based only on what the sources said about that IOC.</span> <span>Malware that many actors share (Cobalt Strike, Mimikatz, remote access tools) doesn't attribute anything on its own.</span> <span>What each confidence level means is under How Shield works, at the bottom of the page.</span></p>
+        <div class="sh-rows">${rows.slice(0, 200).map(row).join("")}</div>${rows.length > 200 ? `<p class="msg">Showing the first 200 of ${rows.length}.</p>` : ""}</div>` : ""}
+      ${board.length ? `<div class="rep-sec"><h3>Threat actors <em>${board.length}</em></h3><div class="sh-actors">${board.map(actorRow).join("")}</div></div>`
+        : rows.length ? `<div class="rep-sec"><h3>Threat actors <em>0</em></h3><div class="empty-note">No source named a threat actor for these IOCs, and their malware is too widely shared to point to one.</div></div>` : ""}
+      ${sharedAll.size ? `<div class="rep-sec"><h3>Shared malware <em>${sharedAll.size}</em></h3><p class="msg ix-note">Used by many actors according to MITRE ATT&amp;CK, so these don't count towards attribution.</p>
+        <div class="ix-chips">${[...sharedAll.keys()].map((s) => chip(ref("software", s), ` <small>${KB.software[s].k === "tool" ? "tool" : `${KB.software[s].g.length} actors`}</small>`)).join("")}</div>
+        ${view.showLeads ? `<p class="msg ix-note">Every actor MITRE ATT&amp;CK records as using them. A lead only, not attribution.</p><div class="ix-chips">${sortBy("groups", leads).map((g) => chip(ref("groups", g), KB.groups[g].country ? ` <small>${esc(KB.groups[g].country)}</small>` : "")).join("")}</div>`
+          : `<p><button class="btn xs ghost" data-intel-leads>List the actors that use them</button></p>`}</div>` : ""}
+      ${sw.length + c.families.size ? `<div class="rep-sec"><h3>Malware &amp; tools <em>${sw.length + c.families.size}</em></h3><div class="ix-cards">${sw.map((s) => profileCard(ref("software", s), c.software.get(s))).join("")}${[...c.families].map(([i, n]) => profileCard(ref("family", i), n)).join("")}</div></div>` : ""}
+      ${c.tech.size ? `<div class="rep-sec"><h3>ATT&amp;CK tactics <em>${new Set([...c.tech.keys()].flatMap((t) => KB.techniques[t].ta)).size}</em><button class="btn xs ghost" data-intel-tab="attack">Open the matrix</button></h3>${tacticBars(c)}</div>` : ""}
       ${attribution()}`;
+  }
+  // one bar per ATT&CK tactic: how many of the scan's techniques fall under it
+  function tacticBars(c) {
+    const per = KB.tactics.map(([s, , name]) => [name, [...c.tech.keys()].filter((t) => KB.techniques[t].ta.includes(s)).length]);
+    const max = Math.max(1, ...per.map((x) => x[1]));
+    return `<div class="sh-tactics">${per.map(([name, n]) => `<button translate="no" class="sh-tac ${n ? "" : "zero"}" data-intel-tab="attack" title="${esc(name)}: ${n}"><span translate="no">${esc(name)}</span><i><b style="width:${(n / max) * 100}%"></b></i><em>${n}</em></button>`).join("")}</div>`;
+  }
+
+  function attackHTML() {
+    if (!S.scanId) return `<div class="empty-note">Scan an IOC first: the ATT&amp;CK techniques of the malware, actors and campaigns the sources link it to are mapped here. Or browse the <button class="btn xs" data-intel-tab="library">Library</button>.</div>`;
+    const c = context();
+    if (!c.tech.size) return `<div class="empty-note">No ATT&amp;CK techniques are linked to this scan yet. They come from the malware, threat actors and campaigns the sources tie the IOCs to, and from techniques sources report directly.</div>`;
+    const rows = [...c.tech].map(([t, why]) => [t, why]).sort((a, b) => c.observed.has(b[0]) - c.observed.has(a[0]) || b[1].size - a[1].size || a[0].localeCompare(b[0]));
+    const tacs = new Set(rows.flatMap(([t]) => KB.techniques[t].ta)).size;
+    return `<div class="rep-sec"><h3>MITRE ATT&amp;CK matrix <em>${c.tech.size}</em>
+        <span class="sh-acts"><button class="btn xs ghost" data-intel-copytech title="Copy every technique ID, one per line">${ICON.copy}Copy IDs</button><button class="btn xs ghost" data-intel-navigator title="A layer file for the MITRE ATT&CK Navigator (mitre-attack.github.io/attack-navigator): Open Existing Layer, Upload from local">Navigator layer</button></span></h3>
+      <p class="msg ix-note"><span>${c.tech.size} techniques across ${tacs} tactics.</span> <span>Techniques the malware, actors and campaigns linked to this scan are known to use.</span>${c.observed.size ? ` <span>${c.observed.size} of them were reported by sources for these IOCs (marked).</span>` : ""} <span>Darker cells are shared by more of them. Click one for its profile.</span></p>
+      ${matrixHTML(c.tech, { observed: c.observed })}</div>
+      <div class="rep-sec"><h3>Techniques <em>${rows.length}</em></h3><div class="ix-list sh-tech" translate="no">${rows.slice(0, 400).map(([t, why]) => `<button class="ix-li" data-intel-profile="techniques:${esc(t)}"><span class="ix-id">${esc(t)}</span><b>${esc(KB.techniques[t].n)}</b>
+        <span class="ix-li-a">${esc(KB.techniques[t].ta.map((x) => KB.tacticName[x] || x).join(", "))} · <span translate="no">${esc([...why].slice(0, 4).join(", "))}${why.size > 4 ? "…" : ""}</span></span>${c.observed.has(t) ? '<span class="sh-pill direct">Reported</span>' : `<span class="ix-cc">${why.size}</span>`}</button>`).join("")}</div></div>
+      ${attribution()}`;
+  }
+  // ATT&CK Navigator layer (format 4.5) for the scan's techniques
+  function navigatorLayer() {
+    const c = context();
+    const max = Math.max(1, ...[...c.tech.values()].map((v) => v.size));
+    const seeds = (typeof seedNodes === "function" ? seedNodes() : []).map((n) => n.value);
+    const av = String(KB.about?.attack_version || "").split(".")[0];
+    return {
+      name: `ARACHNE Shield: ${seeds.slice(0, 3).join(", ")}${seeds.length > 3 ? ` +${seeds.length - 3}` : ""}`.slice(0, 120),
+      versions: { ...(av ? { attack: av } : {}), navigator: "5.1.0", layer: "4.5" },
+      domain: "enterprise-attack",
+      description: `ATT&CK techniques linked to an ARACHNE scan (${new Date().toISOString().slice(0, 10)}). Score = how many of the linked malware, actors and campaigns use the technique.`,
+      techniques: [...c.tech].map(([t, why]) => ({ techniqueID: t, score: why.size, comment: [...why].slice(0, 20).join(", "), enabled: true, showSubtechniques: false,
+        ...(c.observed.has(t) ? { color: "#f59e0b" } : {}) })),
+      gradient: { colors: ["#ffffff", "#ff6666"], minValue: 0, maxValue: max },
+      legendItems: c.observed.size ? [{ label: "Reported by a source for these IOCs", color: "#f59e0b" }] : [],
+      sorting: 3, hideDisabled: false, showTacticRowBackground: false, selectSubtechniquesWithParent: false,
+    };
   }
   function profileCard(r, node) {
     const o = obj(r);
-    const meta = r.kind === "groups" ? [o.country, o.motive, r.id.startsWith("G") ? r.id : "MISP Galaxy"] : r.kind === "software" ? [o.k === "tool" ? "Tool" : "Malware", r.id, `${o.t.length} techniques`, `${o.g.length} actors`] : ["Not in ATT&CK", o.mp];
-    return `<button class="ix-card" data-intel-profile="${esc(r.kind)}:${esc(r.id)}"><div class="ix-card-h"><b>${esc(o.n)}</b>${node ? `<span class="msg">${esc(node.value !== o.n ? node.value : "")}</span>` : ""}</div>
+    const meta = r.kind === "groups" ? [o.country, o.motive, r.id.startsWith("G") ? r.id : "MISP Galaxy"] : r.kind === "software" ? [o.k === "tool" ? "Tool" : "Malware", r.id, o.t.length === 1 ? "1 technique" : `${o.t.length} techniques`, o.g.length === 1 ? "1 actor" : `${o.g.length} actors`] : ["Not in ATT&CK", o.mp];
+    return `<button class="ix-card" translate="no" data-intel-profile="${esc(r.kind)}:${esc(r.id)}"><div class="ix-card-h"><b>${esc(o.n)}</b>${node ? `<span class="msg">${esc(node.value !== o.n ? node.value : "")}</span>` : ""}</div>
       <div class="ix-card-m">${meta.filter(Boolean).map((x) => `<span>${esc(x)}</span>`).join("")}</div>
       ${o.a?.length ? `<div class="ix-card-a">aka ${esc(o.a.slice(0, 5).join(", "))}${o.a.length > 5 ? "…" : ""}</div>` : ""}</button>`;
   }
@@ -302,14 +490,14 @@
     const counts = Object.fromEntries(kinds.map(([k]) => [k, Object.keys(KB[k]).length]));
     return `<div class="ix-lib-h"><input class="inp" data-intel-q placeholder="Search by name, alias or ATT&CK ID (APT29, Cozy Bear, Emotet, T1566, RU)…" value="${esc(view.q)}" spellcheck="false">
       <div class="seg">${kinds.map(([k, l]) => `<button data-intel-lib="${k}" class="${k === kind ? "on" : ""}">${esc(l)} <em>${counts[k]}</em></button>`).join("")}</div></div>
-      <p class="msg ix-note">${q ? `${total} match${total === 1 ? "" : "es"}` : kind === "groups" ? `The ${total} MITRE ATT&amp;CK groups. Search to include the ${counts.groups - total} more actors from the MISP Galaxy.` : `${total} entries`}${total > shown.length ? `, showing the first ${shown.length}` : ""}.</p>
-      <div class="ix-list">${shown.map(([id, o]) => `<button class="ix-li" data-intel-profile="${kind}:${esc(id)}"><span class="ix-id">${esc(/^[GSCT]\d/.test(id) ? id : "MISP")}</span><b>${esc(o.n)}</b>
+      <p class="msg ix-note"><span>${q ? (total === 1 ? "1 match." : `${total} matches.`) : kind === "groups" ? `The ${total} MITRE ATT&amp;CK groups.` : `${total} entries.`}</span>${!q && kind === "groups" ? ` <span>Search to include the ${counts.groups - total} more actors from the MISP Galaxy.</span>` : ""}${total > shown.length ? ` <span>Showing the first ${shown.length}.</span>` : ""}</p>
+      <div class="ix-list" translate="no">${shown.map(([id, o]) => `<button class="ix-li" data-intel-profile="${kind}:${esc(id)}"><span class="ix-id">${esc(/^[GSCT]\d/.test(id) ? id : "MISP")}</span><b>${esc(o.n)}</b>
         <span class="ix-li-a">${esc(kind === "techniques" ? o.ta.map((t) => KB.tacticName[t] || t).join(", ") : (o.a || []).slice(0, 6).join(", "))}</span>${o.country ? `<span class="ix-cc">${esc(o.country)}</span>` : ""}</button>`).join("") || '<div class="empty-note">Nothing matches.</div>'}</div>
       ${attribution()}`;
   }
   function attribution() {
     const a = KB.about || {};
-    return `<p class="ix-attr">Data: <a href="https://attack.mitre.org/" target="_blank" rel="noopener noreferrer">MITRE ATT&amp;CK®</a>${a.attack_version ? ` v${esc(a.attack_version)}` : ""} © The MITRE Corporation, reproduced and distributed with the permission of The MITRE Corporation; <a href="https://github.com/MISP/misp-galaxy" target="_blank" rel="noopener noreferrer">MISP Galaxy</a> (CC0). Built ${esc(a.built || "")}.</p>`;
+    return `<p class="ix-attr" translate="no">Data: <a href="https://attack.mitre.org/" target="_blank" rel="noopener noreferrer">MITRE ATT&amp;CK®</a>${a.attack_version ? ` v${esc(a.attack_version)}` : ""} © The MITRE Corporation, reproduced and distributed with the permission of The MITRE Corporation; <a href="https://github.com/MISP/misp-galaxy" target="_blank" rel="noopener noreferrer">MISP Galaxy</a> (CC0). Built ${esc(a.built || "")}.</p>`;
   }
 
   function profileHTML(r) {
@@ -371,31 +559,37 @@
     return `<div class="ix-prof">
       <div class="ix-prof-h"><div class="d-top">${tchip(typ)}${inScan.length ? '<span class="vbadge">in this scan</span>' : ""}${r.kind === "groups" && o.src === "misp" ? '<span class="vbadge">MISP Galaxy</span>' : '<span class="vbadge">ATT&amp;CK</span>'}</div>
         <h2>${esc(o.n)}${/^[GSCT]\d/.test(r.id) ? ` <span class="ix-id">${esc(r.id)}</span>` : ""}</h2>
-        ${o.a?.length ? `<div class="ix-aka"><span>Also known as</span> ${o.a.map((a) => `<i>${esc(a)}</i>`).join("")}</div>` : ""}
+        ${o.a?.length ? `<div class="ix-aka"><span>Also known as</span> ${o.a.map((a) => `<i translate="no">${esc(a)}</i>`).join("")}</div>` : ""}
         <div class="d-actions">${links.map(([l, u]) => `<a class="btn sm ghost" href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(l)} ↗</a>`).join("")}
           <button class="btn sm ghost" data-intel-scan="${esc(typ)}" data-value="${esc(r.kind === "techniques" ? r.id : o.n)}" title="Put it in the search box to look it up with the scanner">${ICON.pivot}Look up in scanner</button></div></div>
       ${kv.length ? `<dl class="kv ix-kv">${kv.join("")}</dl>` : ""}
-      ${o.d ? `<div class="ix-desc">${o.d.split(/\n\n+/).map((p) => `<p>${esc(p)}</p>`).join("")}</div>` : ""}
+      ${o.d ? `<div class="ix-desc" translate="no">${o.d.split(/\n\n+/).map((p) => `<p>${esc(p)}</p>`).join("")}</div>` : ""}
       ${iocs.size ? sec("IOCs in this scan linked to it", iocs.size, `<div class="ix-chips">${[...iocs.values()].slice(0, 40).map((x) => `<button class="ix-chip ioc" data-intel-goto="${esc(x.id)}"><span style="color:${tc(x.type)}">${esc(glyph(x.type))}</span> ${esc(x.value)}</button>`).join("")}</div>`) : ""}
       ${sections}
       ${tech.size ? sec("MITRE ATT&CK techniques", tech.size, matrixHTML(tech, { scale: 1 })) : ""}
       ${tl.length ? sec("Timeline", tl.length, timelineHTML(tl.sort((a, b) => b.d.localeCompare(a.d)))) : ""}
-      ${o.refs?.length ? sec("References", o.refs.length, `<ul class="ix-refs">${o.refs.map((u) => `<li><a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(u)}</a></li>`).join("")}</ul>`) : ""}
+      ${o.refs?.length ? sec("References", o.refs.length, `<ul class="ix-refs" translate="no">${o.refs.map((u) => `<li><a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(u)}</a></li>`).join("")}</ul>`) : ""}
       ${attribution()}</div>`;
   }
   const sec = (title, n, html) => `<div class="rep-sec"><h3>${esc(title)}${n != null ? ` <em>${n}</em>` : ""}</h3>${html}</div>`;
 
   // ------------------------------------------------------------ events
   document.addEventListener("click", (e) => {
-    const t = e.target.closest("[data-intel-profile],[data-intel-node],[data-intel-open],[data-intel-tab],[data-intel-lib],[data-intel-goto],[data-intel-scan],[data-intel-retry],#intelBack,#intelBtn");
+    const t = e.target.closest("[data-intel-profile],[data-intel-node],[data-intel-open],[data-intel-tab],[data-intel-lib],[data-intel-goto],[data-intel-scan],[data-intel-retry],[data-intel-leads],[data-intel-copytech],[data-intel-navigator],#intelBack");
     if (!t) return;
     e.preventDefault();
-    if (t.id === "intelBtn") return open(S.scanId ? "scan" : "library");
-    if (t.id === "intelBack") { view.stack.pop(); return render(); }
+    if (t.id === "intelBack") return back();
     if (t.dataset.intelRetry !== undefined) { failed = null; render(); return load().catch(() => {}); }
     if (t.dataset.intelOpen) return open(t.dataset.intelOpen);
-    if (t.dataset.intelTab) { view.tab = t.dataset.intelTab; view.stack = []; return render(); }
+    if (t.dataset.intelTab) { view.stack = []; return open(t.dataset.intelTab); }
     if (t.dataset.intelLib) { view.lib = t.dataset.intelLib; return render(); }
+    if (t.dataset.intelLeads !== undefined) { view.showLeads = true; return render(); }
+    if (t.dataset.intelCopytech !== undefined) return KB && copy([...context().tech.keys()].sort().join("\n"));
+    if (t.dataset.intelNavigator !== undefined) {
+      if (!KB) return;
+      download(`arachne-attack-layer-${(S.scanId || "scan").slice(0, 8)}.json`, JSON.stringify(navigatorLayer(), null, 2), "application/json");
+      return toast(t_("Layer saved: open it in the ATT&CK Navigator"));
+    }
     if (t.dataset.intelProfile) {
       const [kind, ...id] = t.dataset.intelProfile.split(":");
       return load().then(() => openProfile(ref(kind, id.join(":")))).catch(() => {});
@@ -408,13 +602,11 @@
       }).catch(() => toast("Threat intel data could not be loaded", "error"));
     }
     if (t.dataset.intelGoto) {
-      $("#intelModal").classList.remove("open");
+      setView("report");
       select(t.dataset.intelGoto);
-      if (S.view !== "report") setView("report");
       return;
     }
     if (t.dataset.intelScan) {
-      $("#intelModal").classList.remove("open");
       $("#typeSel").value = t.dataset.intelScan;
       $("#seedInput").value = t.dataset.value;
       $("#seedInput").focus();
@@ -428,18 +620,26 @@
   });
   document.addEventListener("keydown", (e) => {
     const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || "");
-    if (e.key === "i" && !typing && !$(".modal.open") && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); open(S.scanId ? "scan" : "library"); }
-    if (e.key === "Backspace" && !typing && $("#intelModal")?.classList.contains("open") && view.stack.length) { e.preventDefault(); view.stack.pop(); render(); }
+    if (typing || $(".modal.open") || e.ctrlKey || e.metaKey || e.altKey) return;
+    // I: Shield on and off (back to the report), unless the site turned Shield off
+    if (e.key === "i" && (shown('#viewSeg [data-view="shield"]') || shown('#mnav [data-pane="shield"]') || S.view === "shield")) { e.preventDefault(); if (S.view === "shield") setView("report"); else open(S.scanId ? "scan" : "library"); }
+    if (e.key === "Backspace" && S.view === "shield" && view.stack.length) { e.preventDefault(); back(); }
   });
+  // a new scan starts on the attribution tab again
+  let lastScan = null;
+  function onView() {
+    if (S.scanId !== lastScan) { lastScan = S.scanId; view.showLeads = false; if (S.scanId && view.tab === "library" && !view.stack.length) view.tab = "scan"; }
+    render();
+  }
 
   // #intel=scan | timeline | library | G0016 | S0154 | T1059.001 | C0022 (deep links, called from app.js init)
   function deepLink(hp) {
     const v = hp.get("intel");
     if (!v) return;
-    if (["scan", "timeline", "library"].includes(v)) return open(v);
+    if (["scan", "attack", "matrix", "timeline", "library"].includes(v)) return open(v);
     const kind = /^G/i.test(v) ? "groups" : /^S\d/i.test(v) ? "software" : /^C\d/i.test(v) ? "campaigns" : /^T\d/i.test(v) ? "techniques" : null;
     if (kind) { open("library"); load().then(() => { if (KB[kind][v.toUpperCase()] || KB[kind][v]) { view.stack = [ref(kind, KB[kind][v.toUpperCase()] ? v.toUpperCase() : v)]; render(); } }).catch(() => {}); }
   }
 
-  window.Intel = { load, resolve, context, timeline, reportSection, profileButton, open, openProfile, deepLink, get kb() { return KB; } };
+  window.Intel = { allowed, load, resolve, context, timeline, reportSection, profileButton, open, openProfile, deepLink, render: onView, renderSoon, navigatorLayer, get kb() { return KB; } };
 })();

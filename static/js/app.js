@@ -67,6 +67,7 @@ const ICON = {
   plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
   redo: '<svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>',
   chev: '<svg viewBox="0 0 24 24" class="chev"><path d="m6 9 6 6 6-6"/></svg>',
+  shield: '<svg viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg>',
   select: '<svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="18" cy="18" r="2"/><path d="M8 11l8-4M8 13l8 4"/></svg>',
 };
 
@@ -240,7 +241,7 @@ function flush() {
   applyFilters();
   if (added && S.ui.autoLayout) relayoutSoon();
   renderListSoon(); renderCounts();
-  if (S.view === "report") renderDetailsSoon();
+  if (S.view !== "graph") renderDetailsSoon();
 }
 function runLayout(opts = {}) {
   if (!S.cy || S.cy.nodes().empty()) return;
@@ -426,7 +427,7 @@ function handle(ev) {
     case "result": {
       if (!S.results.has(ev.id)) S.results.set(ev.id, {});
       S.results.get(ev.id)[ev.module] = ev.result;
-      if (S.selected === ev.id || !S.selected) renderDetailsSoon();
+      if (S.selected === ev.id || !S.selected || S.view === "shield") renderDetailsSoon();
       break;
     }
     case "log": addLog(ev); break;
@@ -564,6 +565,7 @@ function vbadge(v, score) { return v ? `<span class="vbadge ${v}">${v}${score &&
 function fillTpl(url, v) { return url.replaceAll("{value}", v).replaceAll("{enc}", encodeURIComponent(v)).replaceAll("{b64}", encodeURIComponent(b64(v))); }
 
 function renderDetails() {
+  if (S.view === "shield") { window.Intel?.renderSoon(); return; }
   if (S.view === "report") renderReport(); else renderPanel();
 }
 function renderPanel() {
@@ -890,7 +892,7 @@ function summaryHTML() {
         <button class="btn sm ghost" data-copyall title="Copy every IOC in this scan, one per line (C)">${ICON.copy}Copy all IOCs</button>
         <button class="btn sm ghost" data-copydefanged title="Copy every IOC defanged, e.g. hxxps://evil[.]com, safe to paste into tickets and chats (D)">${ICON.copy}Copy defanged</button>
         <button class="btn sm ghost" data-copyflagged title="Copy every IOC rated medium risk or higher (Shift+C)">${ICON.copy}Copy flagged IOCs</button>
-        ${window.Intel ? `<button class="btn sm ghost" data-intel-open="scan" title="Malware families, threat actors, ATT&CK techniques and timeline for every IOC in this scan (I)">${ICON.select}Threat intel</button>` : ""}</div>
+        ${window.Intel ? `<button class="btn sm ghost" data-intel-open="scan" title="Open Shield: threat actors, malware, ATT&CK techniques and timeline for every IOC in this scan (I)">${ICON.shield}Shield</button>` : ""}</div>
     </div></div>
     <div class="rep-tiles">${tile("critical", "Critical")}${tile("high", "High")}${tile("medium", "Medium")}${tile("low", "Low")}${tile("clean", "Clean")}${tile("unknown", "Unrated")}</div>
     <div class="rep-sec"><h3>Triage <em>${shown.length}${shown.length !== seeds.length ? ` of ${seeds.length}` : ""}</em>
@@ -937,8 +939,11 @@ function manualHTML(n) {
   if (!links.length) return "";
   return `<div class="rep-sec"><h3>Manual lookups <em>${links.length}</em></h3><div class="lookup-grid">${links.map((l) => `<a href="${esc(fillTpl(l.url, n.value))}" target="_blank" rel="noopener noreferrer">${esc(l.name)}${ICON.link}</a>`).join("")}</div></div>`;
 }
+// views: the scan report, the pivot graph (after the first scan) and Shield (attribution, ATT&CK, timeline: intel.js)
 function setView(v) {
-  if (v !== "graph" || !S.ready) v = "report";
+  if (v === "shield" && !window.Intel) v = "report";
+  if (v === "shield" && S.view !== "shield" && !window.Intel.allowed()) { if (S.view) return; v = "report"; }
+  if (!["report", "graph", "shield"].includes(v) || (v === "graph" && !S.ready)) v = "report";
   S.view = v;
   $("#main").className = "view-" + v;
   $$("#viewSeg [data-view]").forEach((b) => b.classList.toggle("on", b.dataset.view === v));
@@ -950,7 +955,7 @@ function setView(v) {
     if (S.needLayout) { S.needLayout = false; runLayout({ fit: true, randomize: S.firstLayout }); S.firstLayout = false; }
     else if (S.cy.nodes().nonempty()) S.cy.fit(S.cy.elements(":visible"), 50);
   }
-  renderDetails();
+  if (v === "shield") window.Intel.render(); else renderDetails();
 }
 // lay the graph out without showing it (exports from the report view)
 function ensureLaidOut() {
@@ -1558,7 +1563,7 @@ function bind() {
     if (t === "clear") clearAll();
   };
   $("#left").onclick = (e) => {
-    const ent = e.target.closest(".ent"); if (ent) { select(ent.dataset.id); if (MOBILE.matches) setView(S.view); return; }
+    const ent = e.target.closest(".ent"); if (ent) { select(ent.dataset.id); if (MOBILE.matches) setView(S.view === "shield" ? "report" : S.view); return; }
     const lg = e.target.closest("[data-lg]");
     if (lg) { const k = lg.dataset.lg; S.listCollapsed.has(k) ? S.listCollapsed.delete(k) : S.listCollapsed.add(k); return renderList(); }
     const gm = e.target.closest("[data-listgroup]");

@@ -67,7 +67,7 @@ a:hover { border-bottom-color: var(--text); }
 .detect-hint { font: 600 10px var(--mono); letter-spacing: .08em; color: var(--muted); text-transform: uppercase; white-space: nowrap; }
 .detect-hint.bad { color: var(--mal); }
 /* pivoting and the graph only once a scan has finished (body.scan-ready) */
-body:not(.scan-ready) :is(#viewSeg, #mnav [data-pane="graph"], [data-view="graph"], .rep-pivot, .rep-rel [data-scan], [data-act="pivot"], [data-act="deep"]) { display: none !important; }
+body:not(.scan-ready) :is(#viewSeg [data-view="graph"], #mnav [data-pane="graph"], [data-view="graph"], .rep-pivot, .rep-rel [data-scan], [data-act="pivot"], [data-act="deep"]) { display: none !important; }
 body.scan-ready .pivot-wait { display: none; }
 
 .btn {
@@ -519,7 +519,10 @@ input[type=range] { accent-color: var(--accent); width: 220px; }
 /* ---------- views: scan report (default) / pivot graph ---------- */
 #main.view-report { grid-template-columns: var(--left-w) minmax(0, 1fr); }
 #main.view-report #graphWrap, #main.view-report #right { display: none; }
-#main.view-graph #reportWrap { display: none; }
+#main.view-graph #reportWrap, #main:not(.view-shield) #shieldWrap { display: none; }
+/* Shield (static/js/intel.js): a full-width page of its own */
+#main.view-shield { grid-template-columns: minmax(0, 1fr); }
+#main.view-shield > :not(#shieldWrap) { display: none; }
 .view-seg { margin-right: 6px; align-self: center; }
 .view-seg button { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; font-weight: 600; font-size: 12px; }
 .view-seg svg { width: 14px; height: 14px; }
@@ -672,11 +675,12 @@ input[type=range] { accent-color: var(--accent); width: 220px; }
   .search .icon-btn { border-color: var(--line2); }
 
   /* one pane at a time: the indicator list, or the report / graph view */
-  #main, #main.view-report, #main.view-graph { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); position: relative; overflow: hidden; }
+  #main, #main.view-report, #main.view-graph, #main.view-shield { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); position: relative; overflow: hidden; }
   #main > * { grid-area: 1 / 1; }
+  body[data-pane="list"] #main.view-shield #left { display: flex; }
   #left { display: none; border: 0; padding: 12px 12px 0; }
   body[data-pane="list"] #left { display: flex; }
-  body[data-pane="list"] #reportWrap, body[data-pane="list"] #graphWrap, body[data-pane="list"] #right { display: none !important; }
+  body[data-pane="list"] #reportWrap, body[data-pane="list"] #graphWrap, body[data-pane="list"] #right, body[data-pane="list"] #shieldWrap { display: none !important; }
   .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .stat { padding: 7px 8px; }
   .stat b { font-size: 17px; }
@@ -721,7 +725,7 @@ input[type=range] { accent-color: var(--accent); width: 220px; }
   #logToggle { padding-top: 6px; padding-bottom: 6px; }
   #logList { height: 38vh; }
   #mnav {
-    display: grid; grid-template-columns: repeat(3, 1fr); background: var(--panel); border-top: 1px solid var(--line);
+    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--panel); border-top: 1px solid var(--line);
     padding-bottom: env(safe-area-inset-bottom);
   }
   #mnav button {
