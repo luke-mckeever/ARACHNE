@@ -741,5 +741,7 @@
 "Shield report saved": "Rapport Shield enregistré",
 "You can also scan an actor, a malware family or an ATT&CK ID directly (for example <0>APT29</0>, <1>Emotet</1> or <2>T1059.001</2>), or browse the threat library.": "Vous pouvez aussi analyser directement un acteur, une famille de malwares ou un ID ATT&CK (par exemple <0>APT29</0>, <1>Emotet</1> ou <2>T1059.001</2>), ou parcourir la bibliothèque des menaces.",
 "Malware that more than {n} actors use, and tools such as Cobalt Strike or Mimikatz, never attribute an IOC on their own.": "Les malwares utilisés par plus de {n} acteurs, et les outils comme Cobalt Strike ou Mimikatz, n'attribuent jamais un IOC à eux seuls.",
-"Malware never attributes an IOC on its own: only a source naming an actor or a campaign does.": "Un malware n'attribue jamais un IOC à lui seul : seule une source qui nomme un acteur ou une campagne le fait."
+"Malware never attributes an IOC on its own: only a source naming an actor or a campaign does.": "Un malware n'attribue jamais un IOC à lui seul : seule une source qui nomme un acteur ou une campagne le fait.",
+"Export": "Exporter",
+"Tools: scan history, threat library, shortcuts": "Outils : historique des analyses, bibliothèque des menaces, raccourcis"
 }

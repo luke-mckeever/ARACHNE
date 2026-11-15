@@ -8,6 +8,14 @@ All notable changes to ARACHNE. Versions follow [Semantic Versioning](https://se
 
 Each release is tagged in git as `vX.Y.Z`. The running version is shown at the bottom right of the app and printed when the server starts.
 
+## [2.11.0] - 2026-11-15
+
+### Changed
+- **Tidier top bar.** Scan history, the threat library and the keyboard shortcuts moved into one **Tools** menu, and Export is now a labelled menu button next to it. The bar keeps only the search, the Report / Graph / Shield views, Tools, Export and Settings. On narrower screens the two buttons shrink to icons; on phones they sit as icons next to Settings.
+- The **Report / Graph / Shield** tabs (and Shield in the phone bottom bar) stay hidden until a scan has finished, the same way the Graph tab already did. Before that the start screen is all there is to see.
+- Every keyboard shortcut works as before (**R** history, **T** threat library, **?** shortcuts, **E** export). Opening a menu from the keyboard focuses its first item; arrow keys, Home and End move through it and **Esc** closes it.
+- Other front ends can add their own items to the Tools menu with `ArachneTools.add()`.
+
 ## [2.10.1] - 2026-11-15
 
 ### Added

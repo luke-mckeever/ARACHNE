@@ -449,11 +449,11 @@ function addLog(ev) {
   $("#logCount").textContent = S.logs.length;
   $("#logLast").textContent = ev.msg;
 }
-// Pivoting and the graph unlock once the first scan has finished, and stay available until the web is cleared.
+// The view tabs, pivoting and the graph unlock once the first scan has finished, and stay available until the web is cleared.
 function setReady(on) {
   S.ready = on;
   document.body.classList.toggle("scan-ready", on);
-  if (!on && S.view === "graph") setView("report");
+  if (!on && S.view !== "report") setView("report");
 }
 function setStatus(st) {
   S.status = st;
@@ -867,7 +867,12 @@ function stepIoc(dir) {
   select(next.id);
   if (S.view !== "report" && !MOBILE.matches) setView("report");
 }
-const shown = (sel) => !!$(sel)?.offsetParent; // false when a button is hidden (e.g. turned off for the site)
+// false when a button is hidden (e.g. turned off for the site); sitting in a closed menu doesn't count as hidden
+const shown = (sel) => {
+  let e = $(sel);
+  for (; e && e !== document.body; e = e.parentElement) if (!e.classList.contains("menu") && getComputedStyle(e).display === "none") return false;
+  return !!e;
+};
 function openShortcuts() { $("#keysModal").classList.add("open"); }
 
 // combined triage report for a bulk scan: every submitted IOC, riskiest first
@@ -1107,7 +1112,60 @@ function setLeftMin(on, save = true) {
   if (S.cy && S.view === "graph") { S.cy.resize(); }
 }
 function toggleLeft() { if (!MOBILE.matches) setLeftMin(!document.body.classList.contains("left-min")); }
-function closeMenus() { $("#ctxMenu").classList.remove("open"); $("#exportMenu").classList.remove("open"); }
+function closeMenus() {
+  $("#ctxMenu").classList.remove("open");
+  $$(".top-actions .menu.open").forEach((m) => m.classList.remove("open"));
+  $$(".top-actions [aria-haspopup]").forEach((b) => b.setAttribute("aria-expanded", "false"));
+}
+// top bar menus (Tools, Export): one open at a time; arrow keys move between the items
+function openTopMenu(btn, menu, focus = false) {
+  const was = menu.classList.contains("open");
+  closeMenus();
+  if (was) return;
+  toolSeps();
+  menu.classList.add("open"); btn.setAttribute("aria-expanded", "true"); S.menuAt = Date.now();
+  if (focus) [...menu.querySelectorAll("button, a")].find((b) => b.offsetParent)?.focus();
+}
+function menuKeys(e) {
+  const items = [...e.currentTarget.querySelectorAll("button, a")].filter((b) => b.offsetParent);
+  const i = items.indexOf(document.activeElement);
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus(); }
+  else if (e.key === "Home") { e.preventDefault(); items[0]?.focus(); }
+  else if (e.key === "End") { e.preventDefault(); items.at(-1)?.focus(); }
+}
+// Tools menu: items in groups (scan, intel, help) split by a thin line. The website adds its own with ArachneTools.add().
+const TOOL_GROUPS = ["scan", "intel", "help"];
+function toolSeps() {
+  let prev = null;
+  for (const b of $$("#toolsMenu > .mi")) {
+    const vis = getComputedStyle(b).display !== "none";
+    b.classList.toggle("sep", vis && prev !== null && b.dataset.toolGroup !== prev);
+    if (vis) prev = b.dataset.toolGroup;
+  }
+}
+window.ArachneTools = {
+  // add({ id, label, icon (svg markup), key, group, href, title, badge, cls, onclick }) -> the new menu item
+  add(o) {
+    const menu = $("#toolsMenu"); if (!menu) return null;
+    const b = document.createElement(o.href ? "a" : "button");
+    if (o.href) b.href = o.href; else b.type = "button";
+    b.className = "mi" + (o.cls ? " " + o.cls : "");
+    if (o.id) b.id = o.id;
+    b.setAttribute("role", "menuitem");
+    b.dataset.toolGroup = TOOL_GROUPS.includes(o.group) ? o.group : "intel";
+    if (o.title) b.title = o.title;
+    b.innerHTML = o.icon || "";
+    const sp = document.createElement("span"); sp.textContent = o.label; b.append(sp);
+    if (o.badge) { const em = document.createElement("em"); em.textContent = o.badge; b.append(em); }
+    if (o.key) { const k = document.createElement("kbd"); k.textContent = o.key; b.append(k); }
+    if (o.onclick) b.addEventListener("click", (e) => o.onclick(e));
+    const gi = TOOL_GROUPS.indexOf(b.dataset.toolGroup), items = [...menu.children];
+    const last = items.filter((x) => x.dataset.toolGroup === b.dataset.toolGroup).at(-1);
+    const next = items.find((x) => TOOL_GROUPS.indexOf(x.dataset.toolGroup) > gi);
+    if (last) last.after(b); else if (next) menu.insertBefore(b, next); else menu.append(b);
+    return b;
+  },
+};
 function nodeMenu(id, ev) {
   const n = S.nodes.get(id); if (!n) return;
   const piv = S.meta.types[n.type]?.pivotable;
@@ -1490,7 +1548,10 @@ function bind() {
   $("#keysBtn").onclick = openShortcuts;
   $("#settingsBtn").onclick = () => openSettings();
   $("#emptySettings").onclick = (e) => { e.preventDefault(); openSettings("keys"); };
-  $("#exportBtn").onclick = (e) => { e.stopPropagation(); $("#exportMenu").classList.toggle("open"); };
+  $("#exportBtn").onclick = (e) => { e.stopPropagation(); openTopMenu($("#exportBtn"), $("#exportMenu"), e.detail === 0); };
+  $("#toolsBtn").onclick = (e) => { e.stopPropagation(); openTopMenu($("#toolsBtn"), $("#toolsMenu"), e.detail === 0); };
+  $("#toolsMenu").addEventListener("click", (e) => { if (e.target.closest(".mi")) closeMenus(); });
+  $("#toolsMenu").onkeydown = $("#exportMenu").onkeydown = menuKeys;
   $("#exportMenu").onclick = (e) => { const b = e.target.closest("[data-export]"); if (b) { closeMenus(); doExport(b.dataset.export); } };
   $("#logToggle").onclick = () => $("#logbar").classList.toggle("open");
   $("#layoutSel").onchange = (e) => { saveUI({ layout: e.target.value }); runLayout({ fit: true, randomize: true }); };
@@ -1619,7 +1680,7 @@ function bind() {
   }));
   document.addEventListener("keydown", (e) => {
     const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName);
-    if (e.key === "Escape") { closeMenus(); const open = $(".modal.open"); if (open) { open.classList.remove("open"); open.onclose?.(); } else if (!typing) select(null); return; }
+    if (e.key === "Escape") { const m = $(".top-actions .menu.open"); closeMenus(); if (m) { m.parentElement.querySelector("[aria-haspopup]")?.focus(); return; } const open = $(".modal.open"); if (open) { open.classList.remove("open"); open.onclose?.(); } else if (!typing) select(null); return; }
     if (typing || $(".modal.open") || e.ctrlKey || e.metaKey || e.altKey || e.repeat) return; // leave Ctrl+C, Ctrl+V etc. alone
     if (e.key === "/") { e.preventDefault(); $("#seedInput").focus(); }
     else if (e.key === "?") openShortcuts();
@@ -1631,7 +1692,7 @@ function bind() {
     else if (e.key === "r" && shown("#historyBtn")) openHistory();
     else if (e.key === "s") openSettings();
     else if (e.key === "m") toggleLeft();
-    else if (e.key === "e" && shown("#exportBtn")) { closeMenus(); $("#exportMenu").classList.add("open"); S.menuAt = Date.now(); }
+    else if (e.key === "e" && shown("#exportBtn")) { closeMenus(); openTopMenu($("#exportBtn"), $("#exportMenu"), true); }
     else if (e.key === "a" && seedNodes().length > 1) { select(null); setView("report"); }
     else if (e.key === "j") stepIoc(1);
     else if (e.key === "k") stepIoc(-1);

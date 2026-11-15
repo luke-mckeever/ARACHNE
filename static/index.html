@@ -9,9 +9,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/app.css?v=2.10.1">
-<link rel="stylesheet" href="/css/intel.css?v=2.10.1">
-<script src="/js/i18n.js?v=2.10.1"></script>
+<link rel="stylesheet" href="/css/app.css?v=2.11.0">
+<link rel="stylesheet" href="/css/intel.css?v=2.11.0">
+<script src="/js/i18n.js?v=2.11.0"></script>
 <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/layout-base@2.0.1/layout-base.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/cose-base@2.2.0/cose-base.js"></script>
@@ -48,11 +48,17 @@
       <button data-view="graph" title="Pivot graph (V)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="4" cy="5" r="2"/><circle cx="20" cy="5" r="2"/><circle cx="12" cy="21" r="2"/><path d="M6 6l4 4M18 6l-4 4M12 15v4"/></svg>Graph</button>
       <button data-view="shield" title="Arachne Shield: threat actor attribution, MITRE ATT&amp;CK mapping and timelines (I)"><svg viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg>Shield</button>
     </div>
-    <button class="icon-btn keys-btn" id="keysBtn" title="Keyboard shortcuts (?)"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg></button>
-    <button class="icon-btn" id="libraryBtn" title="Threat library: actors, malware, ATT&CK (T)"><svg viewBox="0 0 24 24"><path d="M4 19.5V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2.5z"/><path d="M6 19h13v2H6.5M9 7h6M9 11h4"/></svg></button>
-    <button class="icon-btn" id="historyBtn" title="Scan history (R)"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 3"/></svg></button>
-    <div class="dropdown">
-      <button class="icon-btn" id="exportBtn" title="Export (E)"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v3h16v-3"/></svg></button>
+    <!-- secondary tools live in one menu so the bar stays tidy; the site adds its own items (cases, community, ...) here -->
+    <div class="dropdown" id="toolsDd">
+      <button type="button" class="top-btn" id="toolsBtn" title="Tools: scan history, threat library, shortcuts" aria-haspopup="menu" aria-expanded="false" aria-controls="toolsMenu"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg><span class="lbl">Tools</span><svg viewBox="0 0 24 24" class="chev" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+      <div class="menu tools-menu" id="toolsMenu" role="menu">
+        <button type="button" class="mi" id="historyBtn" role="menuitem" data-tool-group="scan"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 3"/></svg><span>Scan history</span><kbd>R</kbd></button>
+        <button type="button" class="mi" id="libraryBtn" role="menuitem" data-tool-group="intel"><svg viewBox="0 0 24 24"><path d="M4 19.5V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2.5z"/><path d="M6 19h13v2H6.5M9 7h6M9 11h4"/></svg><span>Threat library</span><kbd>T</kbd></button>
+        <button type="button" class="mi keys-btn" id="keysBtn" role="menuitem" data-tool-group="help"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg><span>Keyboard shortcuts</span><kbd>?</kbd></button>
+      </div>
+    </div>
+    <div class="dropdown" id="exportDd">
+      <button type="button" class="top-btn" id="exportBtn" title="Export (E)" aria-haspopup="menu" aria-expanded="false" aria-controls="exportMenu"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v3h16v-3"/></svg><span class="lbl">Export</span><svg viewBox="0 0 24 24" class="chev" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
       <div class="menu" id="exportMenu">
         <button data-export="copyall">Copy all IOCs</button>
         <button data-export="copydefanged">Copy all IOCs (defanged)</button>
@@ -271,11 +277,11 @@
   </div>
 </div>
 
-<script src="/js/config.js?v=2.10.1"></script>
-<script src="/js/app.js?v=2.10.1"></script>
-<script src="/js/extract.js?v=2.10.1"></script>
-<script src="/js/rules.js?v=2.10.1"></script>
-<script src="/js/settings.js?v=2.10.1"></script>
-<script src="/js/intel.js?v=2.10.1"></script>
+<script src="/js/config.js?v=2.11.0"></script>
+<script src="/js/app.js?v=2.11.0"></script>
+<script src="/js/extract.js?v=2.11.0"></script>
+<script src="/js/rules.js?v=2.11.0"></script>
+<script src="/js/settings.js?v=2.11.0"></script>
+<script src="/js/intel.js?v=2.11.0"></script>
 </body>
 </html>

@@ -741,5 +741,7 @@
 "Shield report saved": "Shield 报告已保存",
 "You can also scan an actor, a malware family or an ATT&CK ID directly (for example <0>APT29</0>, <1>Emotet</1> or <2>T1059.001</2>), or browse the threat library.": "你也可以直接扫描行为者、恶意软件家族或 ATT&CK ID(例如 <0>APT29</0>、<1>Emotet</1> 或 <2>T1059.001</2>),或浏览威胁库。",
 "Malware that more than {n} actors use, and tools such as Cobalt Strike or Mimikatz, never attribute an IOC on their own.": "超过 {n} 个行为者使用的恶意软件,以及 Cobalt Strike 或 Mimikatz 等工具,永远不会单独对 IOC 进行归因。",
-"Malware never attributes an IOC on its own: only a source naming an actor or a campaign does.": "恶意软件永远不会单独对 IOC 进行归因:只有点名行为者或活动的来源才会。"
+"Malware never attributes an IOC on its own: only a source naming an actor or a campaign does.": "恶意软件永远不会单独对 IOC 进行归因:只有点名行为者或活动的来源才会。",
+"Export": "导出",
+"Tools: scan history, threat library, shortcuts": "工具：扫描历史、威胁库、快捷键"
 }
