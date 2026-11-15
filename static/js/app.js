@@ -1292,6 +1292,7 @@ async function doExport(kind) {
     }
     return download(base + (kind === "iocsdefanged" ? "-iocs-defanged.txt" : "-iocs.txt"), out, "text/plain");
   }
+  if (kind === "rules") return openRules();
   if (kind === "copyall") return copyIocs();
   if (kind === "copydefanged") return copyIocs(false, true);
   if (kind === "png") { ensureLaidOut(); return download(base + ".png", S.cy.png({ full: true, scale: 2, bg: "#050506", output: "blob" })); }
@@ -1302,6 +1303,13 @@ async function doExport(kind) {
     if (!b) return toast("Nothing to export yet", "warn");
     return download(base + "-stix.json", JSON.stringify(b, null, 2), "application/stix+json");
   }
+}
+// Sigma / YARA / Suricata / Snort rules and SIEM queries from the scan's indicators (static/js/rules.js)
+function openRules() {
+  if (!window.ArachneRules) return toast("Detection rules didn't load - reload the page", "error");
+  const iocs = [...S.nodes.values()].filter((n) => ArachneRules.TYPES.includes(n.type))
+    .map((n) => ({ type: n.type, value: n.value, verdict: n.verdict || "", score: S.results.has(n.id) ? riskOf(n.id).score ?? null : null }));
+  ArachneRules.open(iocs, { source: S.title || S.scanId });
 }
 // indicators that were actually looked up: submitted IOCs first, then pivots
 function reportNodes() {

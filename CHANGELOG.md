@@ -8,6 +8,13 @@ All notable changes to ARACHNE. Versions follow [Semantic Versioning](https://se
 
 Each release is tagged in git as `vX.Y.Z`. The running version is shown at the bottom right of the app and printed when the server starts.
 
+## [2.5.0] - 2026-11-15
+
+### Added
+- Detection rules: Export > Detection rules turns the scan's indicators into Sigma, YARA, Suricata and Snort 2.9 rules, and Splunk SPL, Microsoft Sentinel KQL and Elastic KQL queries, with Copy and Download. Choose malicious and suspicious, malicious only, or all indicators, and the first SID for Suricata/Snort.
+- Every value is checked against its type and escaped for each rule language, so an odd value can't break a rule; values that don't pass are left out and listed. Rule titles, messages and comments show indicators defanged. Rule IDs are stable, so regenerating gives the same rules.
+- Generator tests: `node tests/rules.test.mjs`.
+
 ## [2.4.0] - 2026-11-15
 
 ### Added

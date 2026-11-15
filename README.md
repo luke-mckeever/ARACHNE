@@ -67,6 +67,7 @@ So you don't have to paste them in again on a new machine or after a fresh clone
 - **API key import/export:** back up your keys to a file and load them back in one click.
 - **Settings for nearly everything:** turn modules on or off, set rate limits, add custom username sites and lookup links, change colours, set a proxy, and more.
 - **Exports:** scan report as PDF (via the browser's Save as PDF) or HTML, a STIX 2.1 bundle (an indicator per IOC with the risk score as confidence, plus linked malware families) for TIPs and SIEMs, per-source verdicts CSV, JSON, a plain IOC list or a PNG of the graph.
+- **Detection rules:** Export > Detection rules turns a scan's indicators into Sigma, YARA, Suricata and Snort rules, and Splunk (SPL), Microsoft Sentinel (KQL) and Elastic (KQL) queries, to copy or download. Values are checked and escaped for each rule language; titles and messages show them defanged. Run `node tests/rules.test.mjs` to test the generator.
 - **Saved scans:** every scan is saved, so you can reopen it later and keep pivoting.
 - **Stop all scans:** scans keep running even if no tab is showing them. **History** highlights any that are still running and has a **Stop all** button, and the same switch lives under **Settings → Network & cache**.
 
