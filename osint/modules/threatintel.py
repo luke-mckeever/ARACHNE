@@ -149,12 +149,23 @@ def otx(e, ctx, r):
     r.kv("Whitelisted by", validation)
     fams = sorted({f.get("display_name") for p in pulses for f in p.get("malware_families", []) or [] if f.get("display_name")})
     adv = sorted({p.get("adversary") for p in pulses if p.get("adversary")})
+    attack = {}
+    for p in pulses:
+        for a in p.get("attack_ids") or []:
+            tid = (a.get("id") if isinstance(a, dict) else a) or ""
+            if E.RE_TECHNIQUE.match(str(tid)):
+                attack[str(tid).upper()] = attack.get(str(tid).upper(), 0) + 1
+    techs = sorted(attack, key=lambda t: (-attack[t], t))
     r.kv("Malware families", fams[:10])
     r.kv("Adversaries", adv[:10])
+    r.kv("ATT&CK techniques", techs[:15])
     for f in fams[:5]:
         r.add("malware", f, "family")
     for a in adv[:5]:
         r.tag(a)
+        r.add("actor", a, "attributed_to", pivot=False)
+    for t in techs[:10]:
+        r.add("technique", t, "uses_technique", pivot=False)
     tags = {}
     for p in pulses:
         for t in p.get("tags", []) or []:

@@ -68,12 +68,13 @@ So you don't have to paste them in again on a new machine or after a fresh clone
 - **Settings for nearly everything:** turn modules on or off, set rate limits, add custom username sites and lookup links, change colours, set a proxy, and more.
 - **Exports:** scan report as PDF (via the browser's Save as PDF) or HTML, a STIX 2.1 bundle (an indicator per IOC with the risk score as confidence, plus linked malware families) for TIPs and SIEMs, per-source verdicts CSV, JSON, a plain IOC list or a PNG of the graph.
 - **Detection rules:** Export > Detection rules turns a scan's indicators into Sigma, YARA, Suricata and Snort rules, and Splunk (SPL), Microsoft Sentinel (KQL) and Elastic (KQL) queries, to copy or download. Values are checked and escaped for each rule language; titles and messages show them defanged. Run `node tests/rules.test.mjs` to test the generator.
+- **Threat actors and MITRE ATT&CK:** malware families that sources link to an IOC (ThreatFox, MalwareBazaar, VirusTotal, OTX...) are matched to the threat actors, campaigns and ATT&CK techniques known to use them. The report shows this as **Threat context**, and the **Threat intel** window (shield button or **I**) has an ATT&CK matrix for the whole scan, a **timeline** of every date the sources reported (first seen, registered, campaign activity), and a **library** of profile pages for ~1,100 threat actors, ~840 malware families and tools, ATT&CK campaigns and techniques. You can also scan an actor, family or ATT&CK ID (`T1059.001`, `G0016`, `S0154`, `C0022`) directly. Works offline: the data ships with ARACHNE (see [Threat intel data](#threat-intel-data)).
 - **Saved scans:** every scan is saved, so you can reopen it later and keep pivoting.
 - **Stop all scans:** scans keep running even if no tab is showing them. **History** highlights any that are still running and has a **Stop all** button, and the same switch lives under **Settings → Network & cache**.
 
 ## Sources
 
-**No key needed:** DNS, RDAP/WHOIS, crt.sh, Wayback Machine, Mnemonic passive DNS, Shodan InternetDB, ip-api, SANS ISC, GreyNoise Community, Tor exit list, AlienVault OTX, urlscan.io, OpenPhish, CIRCL hashlookup, RIPEstat, NVD/CISA KEV, Gravatar, GitHub, Keybase, Hacker News, LeakCheck, and a username check across ~40 sites.
+**No key needed:** MITRE ATT&CK & threat actors (built in, offline), DNS, RDAP/WHOIS, crt.sh, Wayback Machine, Mnemonic passive DNS, Shodan InternetDB, ip-api, SANS ISC, GreyNoise Community, Tor exit list, AlienVault OTX, urlscan.io, OpenPhish, CIRCL hashlookup, RIPEstat, NVD/CISA KEV, Gravatar, GitHub, Keybase, Hacker News, LeakCheck, and a username check across ~40 sites.
 
 **API key:** VirusTotal, AbuseIPDB, MalwareBazaar / URLhaus / ThreatFox (one abuse.ch key), Shodan, IPQualityScore, SecurityTrails, Hunter.io, Have I Been Pwned, EmailRep, Google Safe Browsing, Hybrid Analysis.
 
@@ -108,6 +109,14 @@ def myfeed(e, ctx, r):
 ```
 
 It shows up in the UI automatically. To make its key editable in Settings, add the key to `API_KEYS` in `osint/settings.py`.
+
+## Threat intel data
+
+`static/intel/threat-kb.json` holds the threat actor, malware and ATT&CK data. It is built from open sources that allow commercial use, by `python tools/build_threat_kb.py` (run it after a new ATT&CK release and commit the result):
+
+- **MITRE ATT&CK Enterprise** (techniques, groups, software, campaigns). © The MITRE Corporation. This work is reproduced and distributed with the permission of The MITRE Corporation, under MITRE's royalty-free [ATT&CK Terms of Use](https://attack.mitre.org/resources/legal-and-branding/terms-of-use/), which allow research, development and commercial use.
+- **MISP Galaxy** threat-actor cluster (extra actors, country, suspected sponsor, targets, references) and the names and aliases from its malpedia cluster. CC0 1.0 / BSD 2-Clause.
+- **Malpedia** itself (CC BY-NC-SA, non-commercial) and the **ETDA Threat Group Cards** (CC BY-NC-SA 4.0) are not copied, only linked.
 
 ## Notes
 

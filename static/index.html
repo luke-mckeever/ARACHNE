@@ -9,7 +9,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/app.css?v=2.5.0">
+<link rel="stylesheet" href="/css/app.css?v=2.6.0">
+<link rel="stylesheet" href="/css/intel.css?v=2.6.0">
 <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/layout-base@2.0.1/layout-base.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/cose-base@2.2.0/cose-base.js"></script>
@@ -30,7 +31,7 @@
     <select id="typeSel" class="type-sel" title="Indicator type (auto-detected)">
       <option value="auto">AUTO</option>
     </select>
-    <input id="seedInput" spellcheck="false" placeholder="Paste an IOC (defanged is fine): IP · domain · URL · hash · email · username · ASN · CVE  —  comma-separate for several">
+    <input id="seedInput" spellcheck="false" placeholder="Paste an IOC (defanged is fine): IP · domain · URL · hash · email · username · ASN · CVE · ATT&amp;CK ID  —  comma-separate for several">
     <span id="detectHint" class="detect-hint"></span>
     <button type="button" id="addBtn" class="btn ghost icon-btn" title="Add IOC(s) to the current scan instead of starting a new one" disabled>
       <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
@@ -45,6 +46,7 @@
       <button data-view="report" class="on"><svg viewBox="0 0 24 24"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M9 13h6M9 17h6M9 9h2"/></svg>Report</button>
       <button data-view="graph"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="4" cy="5" r="2"/><circle cx="20" cy="5" r="2"/><circle cx="12" cy="21" r="2"/><path d="M6 6l4 4M18 6l-4 4M12 15v4"/></svg>Graph</button>
     </div>
+    <button class="icon-btn" id="intelBtn" title="Threat intel: MITRE ATT&amp;CK, threat actors, malware profiles and the scan timeline (I)"><svg viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z"/><circle cx="12" cy="11" r="2.5"/><path d="M12 13.5V16"/></svg></button>
     <button class="icon-btn keys-btn" id="keysBtn" title="Keyboard shortcuts (?)"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg></button>
     <button class="icon-btn" id="historyBtn" title="Scan history (R)"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 3"/></svg></button>
     <div class="dropdown">
@@ -163,6 +165,7 @@
         <dt><kbd>D</kbd></dt><dd>Copy all IOCs defanged (hxxps://evil[.]com)</dd>
         <dt><kbd>J</kbd> <kbd>K</kbd></dt><dd>Next / previous IOC in the scan</dd>
         <dt><kbd>A</kbd></dt><dd>Summary of all submitted IOCs (bulk scans)</dd>
+        <dt><kbd>I</kbd></dt><dd>Threat intel: ATT&amp;CK, actors, timeline</dd>
         <dt><kbd>V</kbd></dt><dd>Switch between report and graph</dd>
         <dt><kbd>P</kbd></dt><dd>Pivot on the selected indicator</dd>
         <dt><kbd>H</kbd></dt><dd>Hide the selected indicator</dd>
@@ -174,6 +177,15 @@
         <dt><kbd>?</kbd></dt><dd>Show this list</dd>
       </dl>
     </div>
+  </div>
+</div>
+
+<div class="modal" id="intelModal">
+  <div class="modal-box lg">
+    <div class="modal-h"><button class="icon-btn" id="intelBack" title="Back (Backspace)" hidden><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button><h2>Threat intel</h2>
+      <div class="seg" id="intelTabs"><button data-intel-tab="scan">This scan</button><button data-intel-tab="timeline">Timeline</button><button data-intel-tab="library">Library</button></div>
+      <button class="icon-btn" data-close><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="modal-b" id="intelBody"></div>
   </div>
 </div>
 
@@ -220,10 +232,11 @@
   </div>
 </div>
 
-<script src="/js/config.js?v=2.5.0"></script>
-<script src="/js/app.js?v=2.5.0"></script>
-<script src="/js/extract.js?v=2.5.0"></script>
-<script src="/js/rules.js?v=2.5.0"></script>
-<script src="/js/settings.js?v=2.5.0"></script>
+<script src="/js/config.js?v=2.6.0"></script>
+<script src="/js/app.js?v=2.6.0"></script>
+<script src="/js/extract.js?v=2.6.0"></script>
+<script src="/js/rules.js?v=2.6.0"></script>
+<script src="/js/settings.js?v=2.6.0"></script>
+<script src="/js/intel.js?v=2.6.0"></script>
 </body>
 </html>

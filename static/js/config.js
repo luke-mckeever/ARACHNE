@@ -2,16 +2,19 @@
 window.CFG = {
   glyph: {
     ipv4: "IP", ipv6: "IP6", domain: "DOM", url: "URL", email: "@", username: "USR",
-    hash: "#", asn: "AS", cve: "CVE", malware: "MAL", account: "ACC", org: "ORG",
+    hash: "#", asn: "AS", cve: "CVE", malware: "MAL", actor: "APT", campaign: "CMP", technique: "TTP",
+    account: "ACC", org: "ORG",
   },
   typeColors: {
     ipv4: "#5b9cf5", ipv6: "#5b9cf5", domain: "#a78bfa", url: "#38bdf8", email: "#f472b6",
     username: "#facc15", hash: "#fb7185", asn: "#94a3b8", cve: "#fb923c", malware: "#ef4444",
+    actor: "#e879f9", campaign: "#c084fc", technique: "#2dd4bf",
     account: "#34d399", org: "#a8a29e",
   },
   plural: {
     ipv4: "IPv4s", ipv6: "IPv6s", domain: "Domains", url: "URLs", email: "Emails", username: "Usernames",
-    hash: "File hashes", asn: "ASNs", cve: "CVEs", malware: "Malware families", account: "Accounts", org: "Orgs",
+    hash: "File hashes", asn: "ASNs", cve: "CVEs", malware: "Malware families", actor: "Threat actors",
+    campaign: "Campaigns", technique: "ATT&CK techniques", account: "Accounts", org: "Orgs",
   },
   verdictColors: { malicious: "#ef4444", suspicious: "#f59e0b", clean: "#22c55e" },
   ui: {

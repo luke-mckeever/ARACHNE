@@ -586,6 +586,7 @@ function renderPanel() {
         ${S.meta.types[n.type]?.pivotable ? `<button class="btn sm" data-act="pivot" title="Run all enabled modules (double-click node)">${ICON.pivot}Pivot</button>
         <button class="btn sm" data-act="deep" title="Pivot and keep auto-pivoting from here (resets depth to 0)">${ICON.deep}Deep pivot</button>
         <select class="btn sm" data-act="runmod" style="max-width:150px"><option value="">Run module…</option>${modulesFor(n.type).map((m) => `<option value="${m.name}">${esc(m.label)}</option>`).join("")}</select>` : ""}
+        ${window.Intel ? Intel.profileButton(n) : ""}
         <button class="btn sm ghost" data-act="focus" title="Show only this node's neighbourhood">${ICON.focus}</button>
         <button class="btn sm ghost" data-act="addlinked" title="Add a linked indicator">${ICON.plus}</button>
         <button class="btn sm ghost" data-act="hide" title="Hide from graph">${ICON.hide}</button>
@@ -807,6 +808,7 @@ function reportHTML() {
         <button class="btn sm ghost" data-copyall title="Copy every IOC in this scan, one per line (C)">${ICON.copy}Copy all IOCs</button>
         <button class="btn sm ghost" data-copydefanged title="Copy every IOC defanged, e.g. hxxps://evil[.]com, safe to paste into tickets and chats (D)">${ICON.copy}Copy defanged</button>
         <button class="btn sm ghost" data-view="graph" title="Open the pivot graph">${ICON.pivot}Graph</button>
+        ${window.Intel ? Intel.profileButton(n) : ""}
       </div>
     </div>
     <div class="rep-score">${scoreRing(t)}<span>sources flag this IOC</span>
@@ -835,7 +837,7 @@ function reportHTML() {
     ${b.good.map(([m, r]) => cardHTML(m, r)).join("") || (done && !busy.size ? '<div class="empty-note">No source returned data for this IOC.</div>' : "")}
     ${otherSourcesHTML(b)}</div>`;
 
-  return `<div class="rep">${iocBarHTML(n)}${head}${tiles}${table}<div class="rep-cols"><div>${findings}</div><div>${relatedHTML(n)}${manualHTML(n)}</div></div></div>`;
+  return `<div class="rep">${iocBarHTML(n)}${head}${tiles}${table}<div class="rep-cols"><div>${findings}</div><div>${window.Intel ? Intel.reportSection(n) : ""}${relatedHTML(n)}${manualHTML(n)}</div></div></div>`;
 }
 // every indicator in the scan as a plain list, one per line, grouped by type (riskiest first in each type)
 const IOC_ORDER = ["ipv4", "ipv6", "domain", "url", "email", "hash", "asn", "cve", "username", "malware"];
@@ -884,7 +886,8 @@ function summaryHTML() {
       <div class="d-actions"><button class="btn sm" data-rescanall title="Run every enabled source again on all submitted IOCs, skipping the cache">${ICON.redo}Re-scan all (skip cache)</button>
         <button class="btn sm ghost" data-copyall title="Copy every IOC in this scan, one per line (C)">${ICON.copy}Copy all IOCs</button>
         <button class="btn sm ghost" data-copydefanged title="Copy every IOC defanged, e.g. hxxps://evil[.]com, safe to paste into tickets and chats (D)">${ICON.copy}Copy defanged</button>
-        <button class="btn sm ghost" data-copyflagged title="Copy every IOC rated medium risk or higher (Shift+C)">${ICON.copy}Copy flagged IOCs</button></div>
+        <button class="btn sm ghost" data-copyflagged title="Copy every IOC rated medium risk or higher (Shift+C)">${ICON.copy}Copy flagged IOCs</button>
+        ${window.Intel ? `<button class="btn sm ghost" data-intel-open="scan" title="Malware families, threat actors, ATT&CK techniques and timeline for every IOC in this scan (I)">${ICON.select}Threat intel</button>` : ""}</div>
     </div></div>
     <div class="rep-tiles">${tile("critical", "Critical")}${tile("high", "High")}${tile("medium", "Medium")}${tile("low", "Low")}${tile("clean", "Clean")}${tile("unknown", "Unrated")}</div>
     <div class="rep-sec"><h3>Triage <em>${shown.length}${shown.length !== seeds.length ? ` of ${seeds.length}` : ""}</em>
@@ -1644,5 +1647,6 @@ async function init() {
   if (hp.get("groups") === "collapsed") { S.cy.nodes("[?group]").forEach((g) => S.collapsedGroups.add(g.id())); applyFilters(); runLayout({ fit: true, randomize: true }); }
   if (hp.get("node") && S.nodes.has(hp.get("node"))) { S.tab = hp.get("tab") || S.tab; select(hp.get("node"), false); }
   if (hp.get("settings")) openSettings(hp.get("settings"));
+  window.Intel?.deepLink(hp);
 }
 document.addEventListener("DOMContentLoaded", init);

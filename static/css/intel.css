@@ -1,0 +1,95 @@
+/* Threat intel (static/js/intel.js): ATT&CK matrix, actor / malware profiles, library and timeline. */
+.ix-sec h3 .btn { margin-left: auto; letter-spacing: 0; text-transform: none; font-family: var(--sans); }
+.ix-ctx { display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; background: var(--panel); }
+.ix-row { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px; align-items: start; }
+.ix-lbl { font: 600 10px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--dim); padding-top: 4px; }
+.ix-chips { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.ix-chip { border: 1px solid var(--line2); background: var(--panel2); color: var(--text); border-radius: 5px; padding: 3px 8px; font-size: 12px; cursor: pointer; line-height: 1.3; text-align: left; }
+.ix-chip:hover { border-color: var(--line3); background: var(--panel3); }
+.ix-chip small { color: var(--muted); font: 500 10px var(--mono); }
+.ix-chip.groups { border-color: color-mix(in srgb, #e879f9 40%, var(--line2)); }
+.ix-chip.software, .ix-chip.family { border-color: color-mix(in srgb, var(--mal) 40%, var(--line2)); }
+.ix-chip.campaigns { border-color: color-mix(in srgb, #c084fc 40%, var(--line2)); }
+.ix-chip.techniques { border-color: color-mix(in srgb, #2dd4bf 40%, var(--line2)); }
+.ix-chip.ioc { font-family: var(--mono); font-size: 11px; }
+.ix-note { margin: 6px 0 10px; font-size: 12px; }
+.ix-link { background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; border-bottom: 1px dotted var(--line3); text-align: left; }
+#intelTabs { margin-right: 6px; }
+#intelBody { flex: 1; min-height: 0; }
+.ix-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+/* ATT&CK matrix: same layout as the sandbox's matrix */
+.ix-matrix { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); align-items: start; gap: 8px 6px; }
+.ix-matrix .mcol { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ix-matrix .mcol:not(.on) { opacity: .5; }
+.ix-matrix .mhead { display: flex; justify-content: space-between; align-items: baseline; gap: 4px; padding: 7px 8px; border-radius: 7px; background: var(--bg2); border: 1px solid var(--line); min-height: 46px; }
+.ix-matrix .mhead b { font-size: 11px; font-weight: 600; color: var(--muted); line-height: 1.25; }
+.ix-matrix .mhead span { font: 700 11px var(--mono); }
+.ix-matrix .mcol.on .mhead { border-color: var(--line3); } .ix-matrix .mcol.on .mhead b { color: var(--text); }
+.ix-matrix .mcell { display: flex; flex-direction: column; padding: 5px 8px; border-radius: 7px; border: 1px solid var(--line2); background: var(--panel2); text-align: left; cursor: pointer; color: var(--text); }
+.ix-matrix .mcell:hover { border-color: var(--line3); }
+.ix-matrix .mcell b { font: 600 10.5px var(--mono); color: var(--muted); display: flex; justify-content: space-between; gap: 4px; }
+.ix-matrix .mcell b em { font-style: normal; color: var(--text); }
+.ix-matrix .mcell span { font-size: 11.5px; line-height: 1.3; }
+.ix-matrix .mcell.h1 { border-color: color-mix(in srgb, #2dd4bf 30%, var(--line2)); }
+.ix-matrix .mcell.h2 { border-color: color-mix(in srgb, var(--sus) 50%, transparent); background: color-mix(in srgb, var(--sus) 9%, var(--panel2)); }
+.ix-matrix .mcell.seen { box-shadow: inset 3px 0 0 #2dd4bf; }
+.ix-matrix .mcell i { font: 600 9px var(--mono); font-style: normal; color: #2dd4bf; letter-spacing: .04em; margin-top: 2px; }
+.ix-matrix .mcell.h3 { border-color: color-mix(in srgb, var(--mal) 60%, transparent); background: color-mix(in srgb, var(--mal) 13%, var(--panel2)); }
+
+/* profile cards and the library list */
+.ix-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.ix-card { display: flex; flex-direction: column; gap: 5px; text-align: left; border: 1px solid var(--line2); background: var(--panel); border-radius: var(--r); padding: 10px 12px; cursor: pointer; color: var(--text); }
+.ix-card:hover { border-color: var(--line3); background: var(--panel2); }
+.ix-card-h { display: flex; gap: 8px; align-items: baseline; justify-content: space-between; } .ix-card-h b { font-size: 13.5px; }
+.ix-card-m { display: flex; flex-wrap: wrap; gap: 4px; } .ix-card-m span { font: 500 10px var(--mono); color: var(--muted); background: var(--panel3); border-radius: 4px; padding: 1px 6px; }
+.ix-card-a { font-size: 11.5px; color: var(--muted); }
+.ix-lib-h { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; position: sticky; top: -16px; background: var(--panel); padding: 4px 0 8px; z-index: 2; }
+.ix-lib-h .inp { flex: 1 1 320px; min-width: 0; }
+.ix-lib-h .seg em { font-style: normal; color: var(--dim); font: 500 10px var(--mono); margin-left: 3px; }
+.ix-list { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.ix-li { display: grid; grid-template-columns: 64px minmax(120px, 220px) minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 7px 12px; border: 0; border-bottom: 1px solid var(--line); background: var(--panel); color: var(--text); text-align: left; cursor: pointer; }
+.ix-li:last-child { border-bottom: 0; } .ix-li:hover { background: var(--panel2); }
+.ix-li b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ix-li-a { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ix-id { font: 600 10.5px var(--mono); color: var(--muted); }
+.ix-cc { font: 600 10px var(--mono); color: var(--text2); background: var(--panel3); border-radius: 4px; padding: 1px 5px; }
+
+/* profile page */
+.ix-prof-h h2 { margin: 8px 0 6px; font-size: 22px; font-weight: 700; }
+.ix-prof-h h2 .ix-id { font-size: 13px; vertical-align: middle; }
+.ix-aka { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 12px; margin-bottom: 8px; }
+.ix-aka span { font: 600 10px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--dim); margin-right: 4px; }
+.ix-aka i { font-style: normal; background: var(--panel3); border-radius: 4px; padding: 1px 6px; color: var(--text2); }
+.ix-kv { margin-top: 14px; }
+.ix-desc { margin-top: 12px; color: var(--text2); line-height: 1.6; max-width: 900px; } .ix-desc p { margin: 0 0 10px; }
+.ix-refs { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.7; word-break: break-all; }
+.ix-attr { margin-top: 26px; font-size: 11px; color: var(--dim); line-height: 1.5; } .ix-attr a { color: var(--muted); }
+
+/* timeline */
+.ix-years { display: flex; align-items: flex-end; gap: 3px; height: 64px; margin: 4px 0 14px; padding: 0 2px; border-bottom: 1px solid var(--line); }
+.ix-years div { flex: 1; max-width: 36px; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 2px; }
+.ix-years i { width: 100%; background: color-mix(in srgb, var(--accent) 45%, transparent); border-radius: 3px 3px 0 0; }
+.ix-years span { font: 500 9px var(--mono); color: var(--dim); }
+.ix-tl { position: relative; padding-left: 16px; border-left: 2px solid var(--line2); margin-left: 6px; }
+.ix-tl-y { font: 700 12px var(--mono); color: var(--muted); margin: 14px 0 6px -26px; background: var(--panel); padding: 2px 0; position: relative; }
+.ix-tl-y:first-child { margin-top: 0; }
+.ix-tl-e { position: relative; display: grid; grid-template-columns: 196px minmax(0, 1fr); gap: 10px; padding: 5px 0; }
+.ix-tl-e::before { content: ""; position: absolute; left: -22px; top: 10px; width: 8px; height: 8px; border-radius: 50%; background: var(--line3); border: 2px solid var(--panel); }
+.ix-tl-e.camp::before { background: #c084fc; }
+.ix-tl-e time { font: 500 11.5px var(--mono); color: var(--text2); padding-top: 1px; }
+.ix-tl-e b { font-weight: 500; font-size: 12.5px; word-break: break-word; }
+.ix-tl-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; font-size: 11px; color: var(--muted); }
+.ix-tl-meta span { background: var(--panel3); border-radius: 4px; padding: 0 5px; }
+.ix-tl-node { border: 0; background: none; color: var(--text2); font: 500 11px var(--mono); padding: 0; cursor: pointer; display: inline-flex; gap: 4px; max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ix-tl-node:hover { color: var(--text); text-decoration: underline; }
+
+@media (max-width: 900px) {
+  .ix-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ix-row { grid-template-columns: 1fr; gap: 3px; }
+  .ix-li { grid-template-columns: 52px minmax(0, 1fr); } .ix-li-a { grid-column: 2; } .ix-cc { display: none; }
+  .ix-tl-e { grid-template-columns: 1fr; gap: 2px; }
+  #intelTabs button { padding-left: 8px; padding-right: 8px; }
+  .modal-h h2 { font-size: 12px; }
+}
+.modal-h h2 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

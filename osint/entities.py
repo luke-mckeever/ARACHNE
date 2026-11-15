@@ -16,6 +16,9 @@ TYPES = {
     "asn":      {"label": "ASN",       "pivotable": True},
     "cve":      {"label": "CVE",       "pivotable": True},
     "malware":  {"label": "Malware",   "pivotable": True},
+    "actor":    {"label": "Threat actor", "pivotable": True},
+    "technique": {"label": "ATT&CK technique", "pivotable": True},
+    "campaign": {"label": "Campaign",  "pivotable": True},
     "account":  {"label": "Account",   "pivotable": False},
     "org":      {"label": "Org",       "pivotable": False},
 }
@@ -25,6 +28,10 @@ RE_DOMAIN = re.compile(r"^(?=.{1,253}$)(?:(?!-)[A-Za-z0-9_-]{1,63}(?<!-)\.)+[A-Z
 RE_HASH = re.compile(r"^(?:[a-fA-F0-9]{32}|[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$")
 RE_ASN = re.compile(r"^AS(\d{1,10})$", re.I)
 RE_CVE = re.compile(r"^CVE-\d{4}-\d{4,}$", re.I)
+RE_TECHNIQUE = re.compile(r"^T\d{4}(?:\.\d{3})?$", re.I)
+RE_ATTACK_ID = re.compile(r"^([GSC])\d{4}$", re.I)   # ATT&CK group / software / campaign IDs
+ATTACK_ID_TYPE = {"G": "actor", "S": "malware", "C": "campaign"}
+NAME_TYPES = ("org", "malware", "actor", "campaign")   # free-text names: never refanged, compared case-insensitively
 RE_USERNAME = re.compile(r"^@?[A-Za-z0-9_.\-]{2,40}$")
 
 # Free text extraction (bios, comments, descriptions)
@@ -113,6 +120,10 @@ def detect(raw: str):
         return "asn", normalize("asn", v)
     if RE_HASH.match(v):
         return "hash", v.lower()
+    if RE_TECHNIQUE.match(v):
+        return "technique", v.upper()
+    if RE_ATTACK_ID.match(v):
+        return ATTACK_ID_TYPE[v[0].upper()], v.upper()
     if "/" in v and RE_DOMAIN.match(v.split("/", 1)[0]):
         return "url", normalize("url", "http://" + v)
     if RE_DOMAIN.match(v) and not v.replace(".", "").isdigit():
@@ -127,7 +138,7 @@ def normalize(etype: str, value):
     if value is None:
         return None
     # names are not defanged: "Example GmbH (AT)" must keep its "(AT)"
-    v = str(value).strip().strip("\"'") if etype in ("org", "malware") else refang(str(value))
+    v = str(value).strip().strip("\"'") if etype in NAME_TYPES else refang(str(value))
     if not v:
         return None
     if etype in ("ipv4", "ipv6"):
@@ -164,16 +175,19 @@ def normalize(etype: str, value):
     if etype == "username":
         v = v.lstrip("@")
         return v if RE_USERNAME.match(v) else None
-    if etype in ("org", "malware"):
+    if etype in NAME_TYPES:
         v = " ".join(v.split()).strip(" .,;")
         return v[:120] if v else None
+    if etype == "technique":
+        v = v.upper()
+        return v if RE_TECHNIQUE.match(v) else None
     if etype == "account":
         return v if v.startswith("http") else None
     return v
 
 
 def node_id(etype, value):
-    v = value.lower() if etype in ("org", "malware") else value
+    v = value.lower() if etype in NAME_TYPES else value
     return f"{etype}:{v}"
 
 

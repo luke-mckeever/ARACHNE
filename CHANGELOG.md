@@ -8,6 +8,18 @@ All notable changes to ARACHNE. Versions follow [Semantic Versioning](https://se
 
 Each release is tagged in git as `vX.Y.Z`. The running version is shown at the bottom right of the app and printed when the server starts.
 
+## [2.6.0] - 2026-11-15
+
+### Added
+- MITRE ATT&CK and threat actor profiles, built in and offline (MITRE ATT&CK Enterprise + MISP Galaxy, `static/intel/threat-kb.json`, rebuilt with `tools/build_threat_kb.py`).
+- New indicator types: Threat actor, ATT&CK technique and Campaign. Search detects ATT&CK IDs (`T1059.001`, `G0016`, `S0154`, `C0022`); pick the type to scan an actor or family by name.
+- New source "MITRE ATT&CK & Threat Actors" (no key): for a malware family, the actors, campaigns and techniques known to use it; for an actor, its aliases, country, suspected sponsor, targets, malware and techniques; plus technique and campaign lookups.
+- Report: "Threat context" for an IOC (linked malware, actors that sources attributed it to, known users of the malware, campaigns, technique count) and a Profile button on malware / actor / technique / campaign indicators.
+- Threat intel window (shield button or `I`): an ATT&CK matrix for the whole scan, the scan's timeline (every date the sources reported, plus the linked campaigns), and a library of profile pages with search. Deep links: `#intel=G0016`, `#intel=scan`, `#intel=timeline`.
+
+### Changed
+- AlienVault OTX adds the adversaries and ATT&CK techniques its pulses name as linked indicators (they were only tags before).
+
 ## [2.5.0] - 2026-11-15
 
 ### Added
