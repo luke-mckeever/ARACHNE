@@ -1153,7 +1153,7 @@ window.ArachneTools = {
     if (o.id) b.id = o.id;
     b.setAttribute("role", "menuitem");
     b.dataset.toolGroup = TOOL_GROUPS.includes(o.group) ? o.group : "intel";
-    if (o.title) b.title = o.title;
+    b.title = (o.title || o.label) + (o.key ? ` (${o.key})` : "");
     b.innerHTML = o.icon || "";
     const sp = document.createElement("span"); sp.textContent = o.label; b.append(sp);
     if (o.badge) { const em = document.createElement("em"); em.textContent = o.badge; b.append(em); }
@@ -1163,6 +1163,7 @@ window.ArachneTools = {
     const last = items.filter((x) => x.dataset.toolGroup === b.dataset.toolGroup).at(-1);
     const next = items.find((x) => TOOL_GROUPS.indexOf(x.dataset.toolGroup) > gi);
     if (last) last.after(b); else if (next) menu.insertBefore(b, next); else menu.append(b);
+    toolSeps();
     return b;
   },
 };
@@ -1552,6 +1553,7 @@ function bind() {
   $("#toolsBtn").onclick = (e) => { e.stopPropagation(); openTopMenu($("#toolsBtn"), $("#toolsMenu"), e.detail === 0); };
   $("#toolsMenu").addEventListener("click", (e) => { if (e.target.closest(".mi")) closeMenus(); });
   $("#toolsMenu").onkeydown = $("#exportMenu").onkeydown = menuKeys;
+  toolSeps();
   $("#exportMenu").onclick = (e) => { const b = e.target.closest("[data-export]"); if (b) { closeMenus(); doExport(b.dataset.export); } };
   $("#logToggle").onclick = () => $("#logbar").classList.toggle("open");
   $("#layoutSel").onchange = (e) => { saveUI({ layout: e.target.value }); runLayout({ fit: true, randomize: true }); };

@@ -132,6 +132,12 @@ body.scan-ready .pivot-wait { display: none; }
 .menu .mi.sep { margin-top: 9px; }
 .menu .mi.sep::before { content: ""; position: absolute; left: 6px; right: 6px; top: -5px; border-top: 1px solid var(--line2); }
 .tools-menu { min-width: 236px; }
+/* body.tools-wide (set by the site when the bar has spare room, e.g. no active case): wider Tools / Export buttons */
+@media (min-width: 1101px) {
+  body.tools-wide .top-actions { gap: 10px; }
+  body.tools-wide .top-btn { min-width: 128px; justify-content: space-between; padding: 0 10px 0 12px; gap: 8px; }
+  body.tools-wide .top-btn .lbl { flex: 1; text-align: left; }
+}
 #exportMenu { min-width: 250px; }
 
 #progress { background: var(--bg); overflow: hidden; }

@@ -8,6 +8,11 @@ All notable changes to ARACHNE. Versions follow [Semantic Versioning](https://se
 
 Each release is tagged in git as `vX.Y.Z`. The running version is shown at the bottom right of the app and printed when the server starts.
 
+## [2.11.1] - 2026-11-15
+
+### Changed
+- The Tools and Export buttons can be drawn wider, with more space between them, when a site sets `body.tools-wide` (for example when the bar has spare room). Desktop only.
+
 ## [2.11.0] - 2026-11-15
 
 ### Changed
