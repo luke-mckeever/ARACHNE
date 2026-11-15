@@ -8,6 +8,12 @@ All notable changes to ARACHNE. Versions follow [Semantic Versioning](https://se
 
 Each release is tagged in git as `vX.Y.Z`. The running version is shown at the bottom right of the app and printed when the server starts.
 
+## [2.10.1] - 2026-11-15
+
+### Added
+- `window.ArachneShieldConfig = { rare: n }`: a site built on ARACHNE can set how many actors may share a malware before it stops attributing an IOC (default 3, 0 = malware never attributes on its own). "How Shield works" follows the setting.
+- `window.ArachneShieldGate` is now asked with `"shield"` or `"library"`, so a site can open the threat library to more people than Shield.
+
 ## [2.10.0] - 2026-11-15
 
 ### Added

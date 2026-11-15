@@ -243,8 +243,9 @@
   const scroller = () => $("#shieldWrap");
   // A site built on ARACHNE can limit Shield to some accounts: window.ArachneShieldGate() returns false (and
   // explains why) when this user may not open it. The app itself has no accounts, so Shield is always open there.
-  function allowed() {
-    try { return typeof window.ArachneShieldGate !== "function" || window.ArachneShieldGate() !== false; } catch { return true; }
+  // what: "shield" or "library"
+  function allowed(what = "shield") {
+    try { return typeof window.ArachneShieldGate !== "function" || window.ArachneShieldGate(what) !== false; } catch { return true; }
   }
   function open(tab = null, prof = null) {
     if (S.view !== "shield" && !allowed()) return;
@@ -280,6 +281,14 @@
     $("#intelBack").hidden = !prof;
     // the explanation belongs to the attribution tab only
     const how = $("#shieldWrap .sh-how"); if (how) how.hidden = !!prof || view.tab !== "scan";
+    const rs = $("#shRareNote"), r = rare();
+    const lowRow = $("#shieldWrap .sh-how-conf .sh-pill.low")?.closest("li"); if (lowRow) lowRow.hidden = r === 0;
+    if (rs && r !== RARE_DEFAULT && rs.dataset.rare !== String(r)) {
+      rs.dataset.rare = String(r);
+      rs.textContent = r ? t_("Malware that more than {n} actors use, and tools such as Cobalt Strike or Mimikatz, never attribute an IOC on their own.", { n: r })
+        : t_("Malware never attributes an IOC on its own: only a source naming an actor or a campaign does.");
+      rs.setAttribute("translate", "no");
+    }
     const rb = $("[data-intel-report]"); if (rb) rb.disabled = !S.scanId || !KB;
     if (!KB) {
       load().catch(() => {});
@@ -296,7 +305,7 @@
 
   // ------------------------------------------------------------ the threat library window (top bar, key T)
   function openLibrary() {
-    if (!allowed()) return;
+    if (!allowed("library")) return;
     lib.stack = [];
     $("#libModal").classList.add("open");
     renderLib();
@@ -326,7 +335,10 @@
   //   medium  one source named the actor, or named a campaign that MITRE ATT&CK attributes to it
   //   low     the IOC's malware is distinctive: MITRE ATT&CK knows of at most RARE actors using it
   // Malware many actors share (Cobalt Strike, Mimikatz, tools in general) attributes nothing: it is listed as shared.
-  const RARE = 3;
+  // A site built on ARACHNE can change how many actors may share a malware before it stops counting
+  // (window.ArachneShieldConfig = { rare: n }; 0 = malware never attributes on its own).
+  const RARE_DEFAULT = 3;
+  const rare = () => { const v = window.ArachneShieldConfig?.rare; return Number.isInteger(v) && v >= 0 && v <= 50 ? v : RARE_DEFAULT; };
   const CONF = {
     high: ["High", "A source named this actor and another piece of evidence agrees: a second source, or malware or a campaign that belongs to the actor"],
     medium: ["Medium", "One source named this actor, or named a campaign MITRE ATT&CK attributes to it"],
@@ -334,7 +346,7 @@
     none: ["Not attributed", "Sources linked this IOC to malware or techniques that many actors share, so it doesn't point to anyone"],
   };
   const RANK = { high: 3, medium: 2, low: 1, none: 0 };
-  const sharedMal = (o) => o.k === "tool" || o.g.length > RARE;
+  const sharedMal = (o) => o.k === "tool" || o.g.length > rare();
   function attributeIoc(n) {
     const named = new Map(), namedCamps = new Map(), mal = new Map(), fam = new Map(), tech = new Set(), srcs = new Set();
     for (const e of S.edges.values()) {

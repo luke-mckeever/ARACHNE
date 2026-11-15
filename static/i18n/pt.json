@@ -739,5 +739,7 @@
 "Threat actors it works against most": "Atores contra os quais mais funciona",
 "MITRE ATT&CK ↗": "MITRE ATT&CK ↗",
 "Shield report saved": "Relatório do Shield salvo",
-"You can also scan an actor, a malware family or an ATT&CK ID directly (for example <0>APT29</0>, <1>Emotet</1> or <2>T1059.001</2>), or browse the threat library.": "Você também pode escanear diretamente um ator, uma família de malware ou um ID do ATT&CK (por exemplo <0>APT29</0>, <1>Emotet</1> ou <2>T1059.001</2>), ou explorar a biblioteca de ameaças."
+"You can also scan an actor, a malware family or an ATT&CK ID directly (for example <0>APT29</0>, <1>Emotet</1> or <2>T1059.001</2>), or browse the threat library.": "Você também pode escanear diretamente um ator, uma família de malware ou um ID do ATT&CK (por exemplo <0>APT29</0>, <1>Emotet</1> ou <2>T1059.001</2>), ou explorar a biblioteca de ameaças.",
+"Malware that more than {n} actors use, and tools such as Cobalt Strike or Mimikatz, never attribute an IOC on their own.": "Malware usado por mais de {n} atores e ferramentas como Cobalt Strike ou Mimikatz nunca atribuem um IOC sozinhos.",
+"Malware never attributes an IOC on its own: only a source naming an actor or a campaign does.": "O malware nunca atribui um IOC sozinho: só uma fonte que nomeie um ator ou uma campanha faz isso."
 }
