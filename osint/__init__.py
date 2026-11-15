@@ -1,3 +1,3 @@
 """ARACHNE - threat intelligence and OSINT pivoting."""
 
-VERSION = "2.7.0"
+VERSION = "2.7.1"

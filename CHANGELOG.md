@@ -8,6 +8,15 @@ All notable changes to ARACHNE. Versions follow [Semantic Versioning](https://se
 
 Each release is tagged in git as `vX.Y.Z`. The running version is shown at the bottom right of the app and printed when the server starts.
 
+## [2.7.1] - 2026-11-15
+
+### Fixed (phones and narrow screens)
+- **Extract from text**: the bulk scan window now stays full screen on phones in "Extract from text" mode (it used to shrink into a floating box with the page showing behind it).
+- **Detection rules**: when there's nothing to build rules from, the window no longer loses its title bar and format tabs (desktop too). On phones the indicator picker gets its own row, with Copy and Download side by side.
+- **Threat intel**: the This scan / Timeline / Library tabs move to their own full-width row on phones, so the window title isn't cut off and longer translations fit.
+- **Report**: no longer runs a few pixels wider than the screen on small phones (360 px) or with longer translations, which cut off the right edge of cards and the "ATT&CK view" button.
+- **Source verdicts**: on phones each source is a compact two-line row (name, result and score, then detail and age) with the re-run button in reach, instead of a table wider than the screen.
+
 ## [2.7.0] - 2026-11-15
 
 ### Added

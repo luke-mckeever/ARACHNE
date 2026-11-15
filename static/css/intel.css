@@ -93,3 +93,9 @@
   .modal-h h2 { font-size: 12px; }
 }
 .modal-h h2 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 900px) {
+  /* tabs get their own full-width row, so the title is not cut and longer translations fit */
+  #intelModal .modal-h { flex-wrap: wrap; row-gap: 8px; }
+  #intelTabs { order: 5; flex: 1 1 100%; margin: 0; display: flex; }
+  #intelTabs button { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}

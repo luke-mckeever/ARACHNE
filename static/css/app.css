@@ -801,7 +801,7 @@ input[type=range] { accent-color: var(--accent); width: 220px; }
 .rules-hint { display: block; color: var(--muted); }
 .rules-code { flex: 1; min-height: 0; margin: 12px 20px 18px; padding: 14px 16px; overflow: auto; background: var(--bg2); border: 1px solid var(--line); border-radius: var(--r);
   font: 12px/1.55 var(--mono); font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; color: var(--text); white-space: pre; tab-size: 4; user-select: text; }
-.rules-code.empty { color: var(--muted); white-space: pre-wrap; font-family: var(--sans); }
+.rules-code.none { color: var(--muted); white-space: pre-wrap; font-family: var(--sans); }
 @media (max-width: 900px) {
   .rules-box { height: 100%; }
   .rules-bar, .rules-opts, .rules-info { padding-left: 14px; padding-right: 14px; }
@@ -813,3 +813,34 @@ input[type=range] { accent-color: var(--accent); width: 220px; }
 .rep-empty .lang-hint svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; opacity: .7; }
 .rep-empty .lang-hint select { background: transparent; color: inherit; border: 1px solid var(--line, #2a2a30); border-radius: 6px; font: inherit; padding: 2px 6px; cursor: pointer; }
 .rep-empty .lang-hint select option { background: #0c0c0e; color: #e4e4e7; }
+/* ---------------------------------------------------------------- mobile fixes for windows added after v2.2.0 */
+@media (max-width: 1100px) {
+  .rep-cols { grid-template-columns: minmax(0, 1fr); }
+}
+.rep-cols > div { min-width: 0; }
+@media (max-width: 900px) {
+  /* the bulk scan window grows wider in "Extract from text" mode: still full screen on phones */
+  .modal-box.sm.xwide { max-width: none; max-height: 100%; }
+  /* source verdicts: each source becomes a two-line row (name, result, score / detail, age) with the re-run
+     button in reach, instead of a table wider than the screen */
+  .rep-tbl { overflow-x: hidden; }
+  .rep-tbl table, .rep-tbl tbody { display: block; }
+  .rep-tbl thead { display: none; }
+  .rep-tbl tr { display: grid; grid-template-columns: minmax(0, 1fr) auto auto 34px; grid-template-areas: "src res score retry" "det det age retry"; align-items: center; column-gap: 8px; padding: 7px 4px 7px 10px; border-top: 1px solid var(--line); }
+  .rep-tbl tbody tr:first-child { border-top: 0; }
+  .rep-tbl td { padding: 0; border: 0; min-width: 0; }
+  .rep-tbl td:nth-child(1) { grid-area: src; white-space: normal; }
+  .rep-tbl td:nth-child(2) { grid-area: res; }
+  .rep-tbl td:nth-child(3) { grid-area: score; font-family: var(--mono); }
+  .rep-tbl td:nth-child(4) { grid-area: det; max-width: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+  .rep-tbl td:nth-child(5) { grid-area: age; margin-top: 2px; }
+  .rep-tbl td:nth-child(6) { grid-area: retry; }
+  .rep-tbl td:hover, .rep-tbl td.dim:hover { white-space: nowrap; }
+  .rep-tbl td:nth-child(4):empty, .rep-tbl td:nth-child(5):empty { display: none; }
+  .card-h small { white-space: normal; text-align: right; }
+  /* detection rules: indicator picker on its own row, Copy / Download side by side */
+  .rules-opts { gap: 8px; }
+  .rules-opts label:first-child { flex: 1 1 100%; }
+  .rules-opts label:first-child select { flex: 1; min-width: 0; }
+  .rules-opts .btn { flex: 1; justify-content: center; }
+}

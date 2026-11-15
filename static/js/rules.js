@@ -473,7 +473,7 @@
     const code = modal.querySelector("[data-code]");
     code.textContent = out.text || (list.length ? `No ${out.format.label} rules for these indicator types.` :
       state.scope === "all" ? "No indicators to build rules from." : "Nothing in this scan was flagged. Choose \"All\" under Indicators to build rules from every indicator.");
-    code.classList.toggle("empty", !out.text);
+    code.classList.toggle("none", !out.text);
   }
   // iocs: [{ type, value, verdict, score }]
   R.open = function (iocs, opts = {}) {
