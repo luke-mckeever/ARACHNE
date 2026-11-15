@@ -256,7 +256,7 @@ function extractPreview() {
   go.dataset.values = S.bulkSeeds.map(([, v]) => bulkValue(v)).join("\n");
   const counts = {}, on = {};
   for (const it of XS.items) { counts[it.type] = (counts[it.type] || 0) + 1; if (it.on) on[it.type] = (on[it.type] || 0) + 1; }
-  $("#bulkPreview").innerHTML = XS.items.length ? XT_ORDER.filter((t) => counts[t]).map((t) => `<button type="button" class="chip${XS.types.size && !XS.types.has(t) ? " off" : ""}" data-xtype="${t}" title="Show only ${esc(CFG.plural[t] || typeLabel(t))} (click again to show all)"><i class="dot" style="background:${tc(t)}"></i>${esc(CFG.plural[t] || typeLabel(t))}<em>${on[t] || 0}/${counts[t]}</em></button>`).join("") : "";
+  $("#bulkPreview").innerHTML = XS.items.length ? XT_ORDER.filter((t) => counts[t]).map((t) => `<button type="button" class="chip${XS.types.size && !XS.types.has(t) ? " off" : ""}" data-xtype="${t}" title="${esc(window.t("Show only {what} (click again to show all)", { what: window.t(CFG.plural[t] || typeLabel(t)) }))}"><i class="dot" style="background:${tc(t)}"></i>${esc(CFG.plural[t] || typeLabel(t))}<em>${on[t] || 0}/${counts[t]}</em></button>`).join("") : "";
   const list = $("#extractList"), rows = XS.items.filter(shown), top = list.scrollTop;
   list.hidden = !XS.items.length;
   list.innerHTML = XS.items.length ? `<div class="xl-tools"><span>${rows.length} shown</span><button type="button" class="btn xs ghost" data-xall="1">Tick all</button><button type="button" class="btn xs ghost" data-xall="0">Untick all</button></div>` +
@@ -264,16 +264,16 @@ function extractPreview() {
       const k = esc(it.type + "|" + it.value);
       return `<label class="xrow${it.on ? "" : " off"}" title="${esc(it.ctx)}"><input type="checkbox" data-xk="${k}"${it.on ? " checked" : ""}>` +
         `<i class="dot" style="background:${tc(it.type)}"></i><span class="xty" style="color:${tc(it.type)}">${esc(typeLabel(it.type))}</span>` +
-        `<span class="xv mono">${esc(it.value)}</span>${it.why ? `<span class="tag xwhy">${XT_REASON[it.why]}</span>` : ""}${it.count > 1 ? `<em>×${it.count}</em>` : ""}` +
+        `<span class="xv mono">${esc(it.value)}</span>${it.why ? `<span class="tag xwhy">${esc(window.t(XT_REASON[it.why]))}</span>` : ""}${it.count > 1 ? `<em>×${it.count}</em>` : ""}` +
         `${it.why === "mine" ? "" : `<button type="button" class="icon-btn xs" data-xex="${k}" title="Always leave this out"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg></button>`}</label>`;
     }).join("") + (rows.length > 1500 ? `<p class="msg">…and ${rows.length - 1500} more (filter by type to see them)</p>` : "") : "";
   list.scrollTop = top;
   const left = XS.items.length - sel.length, why = {};
   for (const it of XS.items) if (!it.on && it.why) why[it.why] = (why[it.why] || 0) + 1;
-  $("#bulkInfo").textContent = !text.trim() ? "" : !XS.items.length ? "No IOCs found in this text" : [
-    `${XS.items.length} IOC${XS.items.length === 1 ? "" : "s"} found`, `${sel.length} ticked`,
-    left ? `${left} left out${Object.keys(why).length ? ` (${Object.entries(why).map(([w, n]) => `${n} ${XT_REASON[w]}`).join(", ")})` : ""}` : "",
-    sel.length > BULK_MAX ? `only the first ${BULK_MAX} will be scanned` : "", XS.truncated ? "list cut at 5,000" : ""].filter(Boolean).join(" · ");
+  $("#bulkInfo").textContent = !text.trim() ? "" : !XS.items.length ? window.t("No IOCs found in this text") : [
+    window.t(XS.items.length === 1 ? "{n} IOC found" : "{n} IOCs found", { n: XS.items.length }), window.t("{n} ticked", { n: sel.length }),
+    left ? window.t("{n} left out", { n: left }) + (Object.keys(why).length ? ` (${Object.entries(why).map(([w, n]) => `${n} ${window.t(XT_REASON[w])}`).join(", ")})` : "") : "",
+    sel.length > BULK_MAX ? window.t("only the first {n} will be scanned", { n: BULK_MAX }) : "", XS.truncated ? window.t("list cut at 5,000") : ""].filter(Boolean).join(" · ");
   $("#extractExcl summary em").textContent = excl.size ? `(${excl.size})` : "";
   $("#xtCopy").disabled = $("#xtCopyDef").disabled = !sel.length;
   go.disabled = !S.bulkSeeds.length;
@@ -294,7 +294,7 @@ function xtExclude(k) {
   ta.value = (ta.value.trim() ? ta.value.trim() + "\n" : "") + v;
   xtStore.set("exclude", ta.value);
   XS.picked.delete(k);
-  toast(`${v} will be left out from now on`);
+  toast(window.t("{value} will be left out from now on", { value: v }));
   extractPreview();
 }
 function bindExtract() {

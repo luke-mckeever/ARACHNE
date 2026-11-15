@@ -8,6 +8,16 @@ All notable changes to ARACHNE. Versions follow [Semantic Versioning](https://se
 
 Each release is tagged in git as `vX.Y.Z`. The running version is shown at the bottom right of the app and printed when the server starts.
 
+## [2.7.0] - 2026-11-15
+
+### Added
+- The interface is available in 11 languages: English, Spanish, German, French, Portuguese, Italian, Dutch, Polish, Japanese, Chinese (Simplified) and Korean. ARACHNE follows the browser's language by default; pick another under **Settings → Appearance → Interface language** or from the start screen. Data from sources (IOC values, source names, raw findings) is never translated.
+- `tools/check_i18n.py` checks that every language file has the same phrases and the same placeholders.
+
+### Notes
+- The translations were written by AI and haven't been checked by native speakers yet. Corrections are welcome: they live in `static/i18n/<language>.json`.
+- Still in English for now: the activity log messages, module names and descriptions, and exported reports, and the new Detection rules and Threat intel windows (they arrived at the same time and will be translated in a later release).
+
 ## [2.6.0] - 2026-11-15
 
 ### Added

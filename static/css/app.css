@@ -808,3 +808,8 @@ input[type=range] { accent-color: var(--accent); width: 220px; }
   .rules-code { margin: 10px 14px 14px; font-size: 11px; }
   .rules-sp { display: none; }
 }
+/* language picker on the start screen */
+.rep-empty .lang-hint { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; }
+.rep-empty .lang-hint svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; opacity: .7; }
+.rep-empty .lang-hint select { background: transparent; color: inherit; border: 1px solid var(--line, #2a2a30); border-radius: 6px; font: inherit; padding: 2px 6px; cursor: pointer; }
+.rep-empty .lang-hint select option { background: #0c0c0e; color: #e4e4e7; }

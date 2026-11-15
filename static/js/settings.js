@@ -151,6 +151,7 @@ function linkRow(l, types) {
 function tabAppearance() {
   const u = S.ui;
   return `<h3>Appearance</h3><p class="lead">Customise the look of the web. Changes apply instantly.</p>
+    ${field("Interface language", "The language of ARACHNE's menus and reports. Data from sources stays as the source sends it.", '<select class="inp" data-i18n-picker data-i18n-auto></select>')}
     ${field("Accent colour", "Buttons, highlights, progress", `<input type="color" data-k="ui.accent" value="${esc(u.accent)}"><span class="mono msg">${esc(u.accent)}</span>`)}
     ${field("Monochrome nodes", "Grey nodes; only verdicts are coloured", sw("ui.monochrome", u.monochrome))}
     ${field("Node size", "", `<input type="range" min="18" max="64" data-k="ui.nodeSize" data-num value="${u.nodeSize}"><span class="mono msg">${u.nodeSize}px</span>`)}
@@ -293,7 +294,7 @@ function bindSettings() {
     }
     const rs = t.closest("[data-reset]");
     if (rs) {
-      if (!confirm(`Reset ${rs.dataset.reset === "all" ? "ALL settings (API keys kept)" : rs.dataset.reset} to defaults?`)) return;
+      if (!confirm(t("Reset {what} to defaults?", { what: rs.dataset.reset === "all" ? t("ALL settings (API keys kept)") : rs.dataset.reset }))) return;
       S.settings = await api("/api/settings/reset", { body: { section: rs.dataset.reset } });
       applyUI(); flashSaved(); toast("Reset done"); return;
     }

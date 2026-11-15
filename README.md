@@ -70,6 +70,7 @@ So you don't have to paste them in again on a new machine or after a fresh clone
 - **Detection rules:** Export > Detection rules turns a scan's indicators into Sigma, YARA, Suricata and Snort rules, and Splunk (SPL), Microsoft Sentinel (KQL) and Elastic (KQL) queries, to copy or download. Values are checked and escaped for each rule language; titles and messages show them defanged. Run `node tests/rules.test.mjs` to test the generator.
 - **Threat actors and MITRE ATT&CK:** malware families that sources link to an IOC (ThreatFox, MalwareBazaar, VirusTotal, OTX...) are matched to the threat actors, campaigns and ATT&CK techniques known to use them. The report shows this as **Threat context**, and the **Threat intel** window (shield button or **I**) has an ATT&CK matrix for the whole scan, a **timeline** of every date the sources reported (first seen, registered, campaign activity), and a **library** of profile pages for ~1,100 threat actors, ~840 malware families and tools, ATT&CK campaigns and techniques. You can also scan an actor, family or ATT&CK ID (`T1059.001`, `G0016`, `S0154`, `C0022`) directly. Works offline: the data ships with ARACHNE (see [Threat intel data](#threat-intel-data)).
 - **Saved scans:** every scan is saved, so you can reopen it later and keep pivoting.
+- **Languages:** the interface comes in English, Spanish, German, French, Portuguese, Italian, Dutch, Polish, Japanese, Chinese and Korean. It follows your browser's language; change it under **Settings → Appearance → Interface language**.
 - **Stop all scans:** scans keep running even if no tab is showing them. **History** highlights any that are still running and has a **Stop all** button, and the same switch lives under **Settings → Network & cache**.
 
 ## Sources
@@ -117,6 +118,10 @@ It shows up in the UI automatically. To make its key editable in Settings, add t
 - **MITRE ATT&CK Enterprise** (techniques, groups, software, campaigns). © The MITRE Corporation. This work is reproduced and distributed with the permission of The MITRE Corporation, under MITRE's royalty-free [ATT&CK Terms of Use](https://attack.mitre.org/resources/legal-and-branding/terms-of-use/), which allow research, development and commercial use.
 - **MISP Galaxy** threat-actor cluster (extra actors, country, suspected sponsor, targets, references) and the names and aliases from its malpedia cluster. CC0 1.0 / BSD 2-Clause.
 - **Malpedia** itself (CC BY-NC-SA, non-commercial) and the **ETDA Threat Group Cards** (CC BY-NC-SA 4.0) are not copied, only linked.
+
+## Translations
+
+The interface text is translated in the browser by `static/js/i18n.js`, using one dictionary per language in `static/i18n/<code>.json` (English phrase → translation). Data from sources is never translated. To add or fix a phrase, edit the dictionaries; `{name}` placeholders and `<0>…</0>` tags must stay as they are. To find text that isn't translated yet, run `localStorage.setItem("arachne.i18n.debug","1")` in the browser console, reload, use the app, then run `I18N.missing()`. Run `python tools/check_i18n.py` before committing: it checks that every language has the same phrases and placeholders.
 
 ## Notes
 

@@ -316,12 +316,12 @@ function regroup() {
       const info = want.get(g.id());
       if (!info) { cy.remove(cy.getElementById("proxy|" + g.id())); cy.remove(g); return; }
       const name = CFG.plural[info.type] || typeLabel(info.type);
-      g.data("label", `${info.members.length} ${name}`);
+      g.data("label", `${info.members.length} ${t(name)}`);
       g.data("color", tc(info.type));
       const collapsed = S.collapsedGroups.has(g.id());
       g.toggleClass("collapsed", collapsed);
       const pid = "proxy|" + g.id(), proxy = cy.getElementById(pid);
-      if (collapsed && proxy.empty()) cy.add({ group: "edges", data: { id: pid, source: info.owner, target: g.id(), rel: `${info.members.length} ${name.toLowerCase()}` }, classes: "proxy" });
+      if (collapsed && proxy.empty()) cy.add({ group: "edges", data: { id: pid, source: info.owner, target: g.id(), rel: `${info.members.length} ${t(name).toLowerCase()}` }, classes: "proxy" });
       if (!collapsed && proxy.nonempty()) cy.remove(proxy);
     });
   });
@@ -760,6 +760,7 @@ function reportEmptyHTML() {
     <div class="examples">${CFG.examples.map(([k, v]) => `<button data-ex="${esc(v)}"><b>${k}</b>${esc(v)}</button>`).join("")}</div>
     <p class="hint rep-extract">Got a phishing email, a threat report or logs? <a href="#" data-open-extract>Extract every IOC from it</a> and scan them in one go.</p>
     <p class="hint">${enabled} of ${S.meta?.modules.length || 0} sources enabled · ${keys} of ${S.meta?.api_keys.length || 0} API keys configured · <a href="#" data-open-settings="keys">Add API keys</a></p>
+    <p class="hint lang-hint"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><select data-i18n-picker data-i18n-auto></select></p>
   </div>`;
 }
 function renderReport() {
@@ -1192,8 +1193,8 @@ const bulkPreview = debounce(async () => {
   go.dataset.values = S.bulkSeeds.map(([, v]) => bulkValue(v)).join("\n"); // the exact list the scan gets (the website's lookup estimate reads it)
   const counts = {}; for (const [t] of S.bulkSeeds) counts[t] = (counts[t] || 0) + 1;
   $("#bulkPreview").innerHTML = Object.entries(counts).map(([t, c]) => `<span class="chip"><i class="dot" style="background:${tc(t)}"></i>${esc(CFG.plural[t] || typeLabel(t))}<em>${c}</em></span>`).join("");
-  $("#bulkInfo").textContent = [`${seeds.length} IOC${seeds.length === 1 ? "" : "s"} recognised`, r.invalid.length ? `${r.invalid.length} ignored` : "",
-    users ? `${users} username${users === 1 ? "" : "s"} skipped` : "", seeds.length > BULK_MAX ? `only the first ${BULK_MAX} will be scanned` : ""].filter(Boolean).join(" · ");
+  $("#bulkInfo").textContent = [window.t(seeds.length === 1 ? "{n} IOC recognised" : "{n} IOCs recognised", { n: seeds.length }), r.invalid.length ? window.t("{n} ignored", { n: r.invalid.length }) : "",
+    users ? window.t(users === 1 ? "{n} username skipped" : "{n} usernames skipped", { n: users }) : "", seeds.length > BULK_MAX ? window.t("only the first {n} will be scanned", { n: BULK_MAX }) : ""].filter(Boolean).join(" · ");
   go.disabled = !S.bulkSeeds.length;
   go.textContent = S.bulkSeeds.length ? `Scan ${S.bulkSeeds.length} IOC${S.bulkSeeds.length === 1 ? "" : "s"}` : "Scan";
 }, 250);
