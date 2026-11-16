@@ -56,6 +56,7 @@ function inkFor(hex) {
 }
 const VRANK = { malicious: 3, suspicious: 2, clean: 1 };
 const ICON = {
+  graph: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="4" cy="5" r="2"/><circle cx="20" cy="5" r="2"/><circle cx="12" cy="21" r="2"/><path d="M6 6l4 4M18 6l-4 4M12 15v4"/></svg>',
   pivot: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l3 3M16 16l3 3M19 5l-3 3M8 16l-3 3"/></svg>',
   deep: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="10"/></svg>',
   run: '<svg viewBox="0 0 24 24"><path d="m7 4 13 8-13 8z"/></svg>',
@@ -453,7 +454,7 @@ function addLog(ev) {
 function setReady(on) {
   S.ready = on;
   document.body.classList.toggle("scan-ready", on);
-  if (!on && S.view !== "report") setView("report");
+  if (!on && S.view === "graph") setView("report");
 }
 function setStatus(st) {
   S.status = st;
@@ -808,11 +809,11 @@ function reportHTML() {
       <div class="rep-verdict">${riskBadge(rk, true)}<span class="rep-vscore">${rk.rated ? `overall risk from ${rk.rated} source verdict${rk.rated === 1 ? "" : "s"}` : done || busy.size ? "waiting for a source to give a verdict" : ""}</span></div>
       ${n.tags.length ? `<div class="tags">${n.tags.slice(0, 16).map((x) => `<span class="tag">${esc(x)}</span>`).join("")}${n.tags.length > 16 ? `<span class="tag">+${n.tags.length - 16}</span>` : ""}</div>` : ""}
       <div class="d-actions">
+        <button class="btn sm rep-graph" data-view="graph" title="Open the pivot graph">${ICON.graph}Open graph</button>
         ${piv ? `<button class="btn sm" data-rescan="${esc(n.id)}" title="Run every enabled source again, skipping the cache">${ICON.redo}Re-scan (skip cache)</button>
         <select class="btn sm" data-runmod="${esc(n.id)}" style="max-width:170px"><option value="">Run one source…</option>${modulesFor(n.type).map((m) => `<option value="${m.name}">${esc(m.label)}</option>`).join("")}</select>` : ""}
         <button class="btn sm ghost" data-copyall title="Copy every IOC in this scan, one per line (C)">${ICON.copy}Copy all IOCs</button>
         <button class="btn sm ghost" data-copydefanged title="Copy every IOC defanged, e.g. hxxps://evil[.]com, safe to paste into tickets and chats (D)">${ICON.copy}Copy defanged</button>
-        <button class="btn sm ghost" data-view="graph" title="Open the pivot graph">${ICON.pivot}Graph</button>
         ${window.Intel ? Intel.profileButton(n) : ""}
       </div>
     </div>
@@ -893,7 +894,8 @@ function summaryHTML() {
       <div class="d-top"><span class="vbadge">bulk scan</span>${Object.entries(types).map(([k, v]) => `<span class="tchip" style="color:${tc(k)};border-color:${hexA(tc(k), 0.45)};background:${hexA(tc(k), 0.1)}">${v} ${esc(v === 1 ? typeLabel(k) : CFG.plural[k] || typeLabel(k))}</span>`).join("")}</div>
       <div class="d-val rep-val"><span>${seeds.length} IOCs</span></div>
       <div class="rep-vscore" style="margin-top:6px">${running ? `<span class="spinner"></span> ${running} lookups running · ` : ""}${count("critical") + count("high")} need attention (high or critical risk)</div>
-      <div class="d-actions"><button class="btn sm" data-rescanall title="Run every enabled source again on all submitted IOCs, skipping the cache">${ICON.redo}Re-scan all (skip cache)</button>
+      <div class="d-actions"><button class="btn sm rep-graph" data-view="graph" title="Open the pivot graph">${ICON.graph}Open graph</button>
+        <button class="btn sm" data-rescanall title="Run every enabled source again on all submitted IOCs, skipping the cache">${ICON.redo}Re-scan all (skip cache)</button>
         <button class="btn sm ghost" data-copyall title="Copy every IOC in this scan, one per line (C)">${ICON.copy}Copy all IOCs</button>
         <button class="btn sm ghost" data-copydefanged title="Copy every IOC defanged, e.g. hxxps://evil[.]com, safe to paste into tickets and chats (D)">${ICON.copy}Copy defanged</button>
         <button class="btn sm ghost" data-copyflagged title="Copy every IOC rated medium risk or higher (Shift+C)">${ICON.copy}Copy flagged IOCs</button>
@@ -945,13 +947,38 @@ function manualHTML(n) {
   return `<div class="rep-sec"><h3>Manual lookups <em>${links.length}</em></h3><div class="lookup-grid">${links.map((l) => `<a href="${esc(fillTpl(l.url, n.value))}" target="_blank" rel="noopener noreferrer">${esc(l.name)}${ICON.link}</a>`).join("")}</div></div>`;
 }
 // views: the scan report, the pivot graph (after the first scan) and Shield (attribution, ATT&CK, timeline: intel.js)
+// Views a site adds next to Scanner and Shield (e.g. the website's Sandbox): a tab, a phone bottom-bar button and a page in #main.
+const EXTRA_VIEWS = new Map();
+window.ArachneViews = {
+  // add({ id, label, icon (svg markup), title, el (the page), onShow, onHide, after }) -> the tab button
+  add(o) {
+    if (!o || !o.id || EXTRA_VIEWS.has(o.id) || ["report", "graph", "shield"].includes(o.id)) return null;
+    EXTRA_VIEWS.set(o.id, o);
+    o.el.classList.add("ext-view"); o.el.dataset.extView = o.id;
+    $("#main").append(o.el);
+    const tab = document.createElement("button");
+    tab.dataset.view = o.id; tab.setAttribute("role", "tab");
+    tab.title = o.title || o.label; tab.innerHTML = o.icon || "";
+    tab.append(o.label);
+    $("#viewSeg").append(tab);
+    const mb = document.createElement("button");
+    mb.type = "button"; mb.dataset.pane = o.id; mb.innerHTML = o.icon || "";
+    const sp = document.createElement("span"); sp.textContent = o.label; mb.append(sp);
+    $("#mnav").append(mb);
+    return tab;
+  },
+};
 function setView(v) {
   if (v === "shield" && !window.Intel) v = "report";
   if (v === "shield" && S.view !== "shield" && !window.Intel.allowed()) { if (S.view) return; v = "report"; }
-  if (!["report", "graph", "shield"].includes(v) || (v === "graph" && !S.ready)) v = "report";
+  if (!(["report", "graph", "shield"].includes(v) || EXTRA_VIEWS.has(v)) || (v === "graph" && !S.ready)) v = "report";
+  const prev = S.view;
+  if (prev !== v && EXTRA_VIEWS.has(prev)) EXTRA_VIEWS.get(prev).onHide?.();
   S.view = v;
-  $("#main").className = "view-" + v;
-  $$("#viewSeg [data-view]").forEach((b) => b.classList.toggle("on", b.dataset.view === v));
+  $("#main").className = "view-" + v + (EXTRA_VIEWS.has(v) ? " view-ext" : "");
+  for (const [id, o] of EXTRA_VIEWS) o.el.classList.toggle("on", id === v);
+  const tab = v === "graph" ? "report" : v; // the graph belongs to the Scanner
+  $$("#viewSeg [data-view]").forEach((b) => { b.classList.toggle("on", b.dataset.view === tab); b.setAttribute("aria-selected", String(b.dataset.view === tab)); });
   setPane(v);
   closeMenus();
   if (v === "graph" && S.cy) {
@@ -960,7 +987,7 @@ function setView(v) {
     if (S.needLayout) { S.needLayout = false; runLayout({ fit: true, randomize: S.firstLayout }); S.firstLayout = false; }
     else if (S.cy.nodes().nonempty()) S.cy.fit(S.cy.elements(":visible"), 50);
   }
-  if (v === "shield") window.Intel.render(); else renderDetails();
+  if (v === "shield") window.Intel.render(); else if (EXTRA_VIEWS.has(v)) { if (prev !== v) EXTRA_VIEWS.get(v).onShow?.(); } else renderDetails();
 }
 // lay the graph out without showing it (exports from the report view)
 function ensureLaidOut() {
@@ -1100,7 +1127,7 @@ function menu(items, ev, title) {
 const MOBILE = matchMedia("(max-width: 900px)");
 function setPane(p) {
   document.body.dataset.pane = p === "list" ? "list" : "view";
-  $$("#mnav [data-pane]").forEach((b) => b.classList.toggle("on", b.dataset.pane === (p === "list" ? "list" : S.view)));
+  $$("#mnav [data-pane]").forEach((b) => b.classList.toggle("on", b.dataset.pane === (p === "list" ? "list" : S.view === "graph" ? "report" : S.view)));
   if (p !== "list" && S.view === "graph" && S.cy) S.cy.resize();
 }
 // desktop side panel: hide it down to a slim rail (remembered in this browser); phones use the bottom nav instead
@@ -1292,6 +1319,7 @@ async function runBulk() {
 async function startScan(add = false, bulkValue = null) {
   const value = bulkValue ?? $("#seedInput").value.trim();
   if (!value) { $("#seedInput").focus(); return; }
+  if (EXTRA_VIEWS.has(S.view)) setView("report"); // scanning from another system (e.g. Sandbox) shows the scan
   const type = bulkValue ? "auto" : $("#typeSel").value;
   if (add && S.scanId) {
     try {
@@ -1609,6 +1637,7 @@ function bind() {
   }, true);
   $(".graph-tools").onclick = (e) => {
     const t = e.target.closest("[data-tool]")?.dataset.tool; if (!t) return;
+    if (t === "back") return setView("report");
     if (t === "fit") S.cy.animate({ fit: { eles: S.cy.elements(":visible"), padding: 50 }, duration: 350 });
     if (t === "layout") runLayout({ fit: true, randomize: true });
     if (t === "labels") saveUI({ showLabels: !S.ui.showLabels });
@@ -1626,7 +1655,7 @@ function bind() {
     if (t === "clear") clearAll();
   };
   $("#left").onclick = (e) => {
-    const ent = e.target.closest(".ent"); if (ent) { select(ent.dataset.id); if (MOBILE.matches) setView(S.view === "shield" ? "report" : S.view); return; }
+    const ent = e.target.closest(".ent"); if (ent) { select(ent.dataset.id); if (MOBILE.matches) setView(S.view === "graph" ? "graph" : "report"); return; }
     const lg = e.target.closest("[data-lg]");
     if (lg) { const k = lg.dataset.lg; S.listCollapsed.has(k) ? S.listCollapsed.delete(k) : S.listCollapsed.add(k); return renderList(); }
     const gm = e.target.closest("[data-listgroup]");

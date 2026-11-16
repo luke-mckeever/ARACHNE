@@ -743,5 +743,9 @@
 "Malware that more than {n} actors use, and tools such as Cobalt Strike or Mimikatz, never attribute an IOC on their own.": "El malware que usan más de {n} actores y herramientas como Cobalt Strike o Mimikatz nunca atribuyen un IOC por sí solos.",
 "Malware never attributes an IOC on its own: only a source naming an actor or a campaign does.": "El malware nunca atribuye un IOC por sí solo: solo lo hace una fuente que nombre un actor o una campaña.",
 "Export": "Exportar",
-"Tools: scan history, threat library, shortcuts": "Herramientas: historial de análisis, biblioteca de amenazas, atajos"
+"Tools: scan history, threat library": "Herramientas: historial de análisis, biblioteca de amenazas",
+"Scanner": "Escáner",
+"Scanner: scan IOCs and read the report": "Escáner: analiza IOC y lee el informe",
+"Open graph": "Abrir grafo",
+"Back to the scan report (V)": "Volver al informe del análisis (V)"
 }

@@ -63,7 +63,8 @@ So you don't have to paste them in again on a new machine or after a fresh clone
 - **Bulk scanning:** paste, upload or drop a list of up to 500 IOCs (defanged values are fine). You get a combined triage report sorted by risk, with a filter, a "medium and above" toggle and one-click copy of the flagged IOCs.
 - **Freshness:** every source result shows how old it is and whether it came from the cache. **Re-scan (skip cache)** runs every source again, for one IOC or a whole bulk scan.
 - **Pivoting when you want it:** scan related indicators one at a time or all at once from the report, or turn on auto-pivot with configurable depth and node limits. A noise filter stops it crawling through CDNs and big providers.
-- **Graph view:** everything found, mapped as a web, with malicious and suspicious nodes highlighted. Large sets of one type (e.g. 40 domains on one IP) collapse into a single box.
+- **Scanner and Shield:** the two tabs at the top. Scanner is the IOC scan and its report; Shield (threat actor attribution, ATT&CK, defences, timeline) is open from the start.
+- **Graph view** (the **Open graph** button on every scan report, or **V**): everything found, mapped as a web, with malicious and suspicious nodes highlighted. Large sets of one type (e.g. 40 domains on one IP) collapse into a single box.
 - **API key import/export:** back up your keys to a file and load them back in one click.
 - **Settings for nearly everything:** turn modules on or off, set rate limits, add custom username sites and lookup links, change colours, set a proxy, and more.
 - **Exports:** scan report as PDF (via the browser's Save as PDF) or HTML, a STIX 2.1 bundle (an indicator per IOC with the risk score as confidence, plus linked malware families) for TIPs and SIEMs, per-source verdicts CSV, JSON, a plain IOC list or a PNG of the graph.

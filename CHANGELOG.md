@@ -8,6 +8,14 @@ All notable changes to ARACHNE. Versions follow [Semantic Versioning](https://se
 
 Each release is tagged in git as `vX.Y.Z`. The running version is shown at the bottom right of the app and printed when the server starts.
 
+## [2.12.0] - 2026-11-16
+
+### Changed
+- **Scanner, Shield and Sandbox.** The tabs at the top are now the app's systems instead of Report / Graph / Shield. **Scanner** is the IOC scan and its report, as before. **Shield** (threat actor attribution) is there from the start, not only after a scan. Sites built on ARACHNE can add more systems as tabs (`ArachneViews.add()`); the website adds **Sandbox**.
+- **Graph** moved into the scan report: every report has a highlighted **Open graph** button (single IOCs and bulk scans), and the graph has a **Report** button to go back. **V** still switches between the two. On phones the bottom bar is Indicators · Scanner · Shield.
+### Changed
+- **Keyboard shortcuts** moved out of the Tools menu to a small keyboard icon at the bottom right of the window, next to the version number. **?** still opens the list. Phones don't show it (no keyboard).
+
 ## [2.11.2] - 2026-11-16
 
 ### Fixed

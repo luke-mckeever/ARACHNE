@@ -66,8 +66,8 @@ a:hover { border-bottom-color: var(--text); }
 #seedInput::placeholder { color: var(--dim); font-size: 12.5px; }
 .detect-hint { font: 600 10px var(--mono); letter-spacing: .08em; color: var(--muted); text-transform: uppercase; white-space: nowrap; }
 .detect-hint.bad { color: var(--mal); }
-/* the Report / Graph / Shield tabs, pivoting and the graph only once a scan has finished (body.scan-ready) */
-body:not(.scan-ready) :is(#viewSeg, #mnav [data-pane="shield"], #mnav [data-pane="graph"], [data-view="graph"], .rep-pivot, .rep-rel [data-scan], [data-act="pivot"], [data-act="deep"]) { display: none !important; }
+/* pivoting and the graph only once a scan has finished (body.scan-ready) */
+body:not(.scan-ready) :is( [data-view="graph"], .rep-pivot, .rep-rel [data-scan], [data-act="pivot"], [data-act="deep"]) { display: none !important; }
 body.scan-ready .pivot-wait { display: none; }
 
 .btn {
@@ -334,6 +334,10 @@ pre.raw { font: 10.5px/1.5 var(--mono); color: var(--text2); background: var(--b
 
 /* ---------- log ---------- */
 #logbar { border-top: 1px solid var(--line); background: var(--panel); }
+.log-row { display: flex; align-items: center; }
+.log-row #logToggle { flex: 1; min-width: 0; padding-right: 8px; }
+#keysBtn { flex: none; min-width: 26px; height: 24px; padding: 0 6px; margin-right: 8px; color: var(--muted); }
+#keysBtn svg { width: 15px; height: 15px; }
 #logToggle { width: 100%; display: flex; align-items: center; gap: 8px; background: none; border: 0; padding: 6px 14px; cursor: pointer; color: var(--muted); font: 600 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; }
 #logToggle svg { width: 13px; transition: transform .15s; }
 #logbar.open #logToggle svg { transform: rotate(180deg); }
@@ -560,6 +564,16 @@ input[type=range] { accent-color: var(--accent); width: 220px; }
 /* Shield (static/js/intel.js): a full-width page of its own */
 #main.view-shield { grid-template-columns: minmax(0, 1fr); }
 #main.view-shield > :not(#shieldWrap) { display: none; }
+/* views a site adds (ArachneViews.add, e.g. Sandbox): a full-width page of their own */
+.ext-view { display: none; min-width: 0; min-height: 0; }
+#main.view-ext { grid-template-columns: minmax(0, 1fr); }
+#main.view-ext > :not(.ext-view.on) { display: none; }
+#main.view-ext > .ext-view.on { display: flex; flex-direction: column; }
+/* the scan report's way into its graph: easy to spot */
+.btn.rep-graph { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); padding: 5px 12px; }
+.btn.rep-graph:hover { background: var(--accent); filter: brightness(.9); }
+.btn.rep-graph svg { width: 14px; height: 14px; }
+.graph-tools .graph-back { margin-right: 4px; }
 .view-seg { margin-right: 6px; align-self: center; }
 .view-seg button { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; font-weight: 600; font-size: 12px; }
 .view-seg svg { width: 14px; height: 14px; }
@@ -686,7 +700,7 @@ input[type=range] { accent-color: var(--accent); width: 220px; }
   .src-retry { opacity: 1; }
 }
 @media (max-width: 900px) {
-  .keys-btn, .menu .mi.keys-btn { display: none; } /* no keyboard on phones */
+  .keys-btn { display: none; } /* no keyboard on phones */
   body { height: 100dvh; grid-template-rows: auto 2px minmax(0, 1fr) auto auto; }
 
   /* top bar: brand + actions on one row, the scan form full width below */
@@ -719,7 +733,8 @@ input[type=range] { accent-color: var(--accent); width: 220px; }
   /* one pane at a time: the indicator list, or the report / graph view */
   #main, #main.view-report, #main.view-graph, #main.view-shield { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); position: relative; overflow: hidden; }
   #main > * { grid-area: 1 / 1; }
-  body[data-pane="list"] #main.view-shield #left { display: flex; }
+  body[data-pane="list"] #main.view-shield #left, body[data-pane="list"] #main.view-ext #left { display: flex; }
+  body[data-pane="list"] .ext-view { display: none !important; }
   #left { display: none; border: 0; padding: 12px 12px 0; }
   body[data-pane="list"] #left { display: flex; }
   body[data-pane="list"] #reportWrap, body[data-pane="list"] #graphWrap, body[data-pane="list"] #right, body[data-pane="list"] #shieldWrap { display: none !important; }

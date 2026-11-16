@@ -743,5 +743,9 @@
 "Malware that more than {n} actors use, and tools such as Cobalt Strike or Mimikatz, never attribute an IOC on their own.": "超过 {n} 个行为者使用的恶意软件,以及 Cobalt Strike 或 Mimikatz 等工具,永远不会单独对 IOC 进行归因。",
 "Malware never attributes an IOC on its own: only a source naming an actor or a campaign does.": "恶意软件永远不会单独对 IOC 进行归因:只有点名行为者或活动的来源才会。",
 "Export": "导出",
-"Tools: scan history, threat library, shortcuts": "工具：扫描历史、威胁库、快捷键"
+"Tools: scan history, threat library": "工具：扫描历史、威胁库",
+"Scanner": "扫描器",
+"Scanner: scan IOCs and read the report": "扫描器：扫描 IOC 并查看报告",
+"Open graph": "打开关系图",
+"Back to the scan report (V)": "返回扫描报告 (V)"
 }

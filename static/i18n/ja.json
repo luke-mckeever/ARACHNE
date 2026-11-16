@@ -743,5 +743,9 @@
 "Malware that more than {n} actors use, and tools such as Cobalt Strike or Mimikatz, never attribute an IOC on their own.": "{n} を超えるアクターが使うマルウェアや、Cobalt Strike、Mimikatz などのツールだけで IOC が帰属されることはありません。",
 "Malware never attributes an IOC on its own: only a source naming an actor or a campaign does.": "マルウェアだけで IOC が帰属されることはありません。帰属はアクターやキャンペーンを名指ししたソースによってのみ行われます。",
 "Export": "エクスポート",
-"Tools: scan history, threat library, shortcuts": "ツール: スキャン履歴、脅威ライブラリ、ショートカット"
+"Tools: scan history, threat library": "ツール: スキャン履歴、脅威ライブラリ",
+"Scanner": "スキャナー",
+"Scanner: scan IOCs and read the report": "スキャナー: IOC をスキャンしてレポートを読む",
+"Open graph": "グラフを開く",
+"Back to the scan report (V)": "スキャンレポートに戻る (V)"
 }
