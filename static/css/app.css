@@ -62,7 +62,7 @@ a:hover { border-bottom-color: var(--text); }
   background: var(--panel3); border: 1px solid var(--line2); border-radius: 6px; padding: 6px 8px;
   font: 600 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; color: var(--text2);
 }
-#seedInput { flex: 1; width: 0; min-width: 90px; background: none; border: 0; outline: 0; font: 14px var(--mono); padding: 6px 4px; }
+#seedInput { flex: 1; width: 0; min-width: 70px; background: none; border: 0; outline: 0; font: 14px var(--mono); padding: 6px 4px; }
 #seedInput::placeholder { color: var(--dim); font-size: 12.5px; }
 .detect-hint { font: 600 10px var(--mono); letter-spacing: .08em; color: var(--muted); text-transform: uppercase; white-space: nowrap; }
 .detect-hint.bad { color: var(--mal); }
@@ -132,8 +132,15 @@ body.scan-ready .pivot-wait { display: none; }
 .menu .mi.sep { margin-top: 9px; }
 .menu .mi.sep::before { content: ""; position: absolute; left: 6px; right: 6px; top: -5px; border-top: 1px solid var(--line2); }
 .tools-menu { min-width: 236px; }
+/* the bar never overlaps: the search box keeps its buttons inside, and the right side shrinks step by step as the window narrows */
+#topbar > .top-actions { flex: none; }
+.search > :not(#seedInput) { flex-shrink: 0; }
+@media (max-width: 1499px) { .type-sel { max-width: 120px; } .detect-hint { display: none; } }
+@media (max-width: 1399px) { .top-btn .lbl { display: none; } .top-btn { padding: 0 6px 0 8px; } .search { gap: 6px; } }
+@media (max-width: 1199px) and (min-width: 901px) { .view-seg svg { display: none; } .view-seg button { padding: 5px 8px; } .type-sel { max-width: 96px; } }
+@media (max-width: 1049px) and (min-width: 901px) { .type-sel { max-width: 80px; } #topbar { gap: 8px; } }
 /* body.tools-wide (set by the site when the bar has spare room, e.g. no active case): wider Tools / Export buttons */
-@media (min-width: 1101px) {
+@media (min-width: 1500px) {
   body.tools-wide .top-actions { gap: 10px; }
   body.tools-wide .top-btn { min-width: 128px; justify-content: space-between; padding: 0 10px 0 12px; gap: 8px; }
   body.tools-wide .top-btn .lbl { flex: 1; text-align: left; }

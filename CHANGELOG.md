@@ -8,6 +8,11 @@ All notable changes to ARACHNE. Versions follow [Semantic Versioning](https://se
 
 Each release is tagged in git as `vX.Y.Z`. The running version is shown at the bottom right of the app and printed when the server starts.
 
+## [2.11.2] - 2026-11-16
+
+### Fixed
+- Top bar overlap on mid-size screens (about 900 to 1500px wide): the search box could run into the Report / Graph / Shield tabs and hide part of them. The bar now steps down as the window narrows: the type picker gets narrower, the IPV4 / DOMAIN hint goes, the Tools and Export labels turn into icons, and the tab icons go, so nothing overlaps at any width.
+
 ## [2.11.1] - 2026-11-15
 
 ### Changed
