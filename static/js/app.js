@@ -56,6 +56,7 @@ function inkFor(hex) {
 }
 const VRANK = { malicious: 3, suspicious: 2, clean: 1 };
 const ICON = {
+  expo: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="1.5"/><rect x="3" y="13" width="18" height="7" rx="1.5"/><path d="M7 7.5h.01M7 16.5h.01M11 7.5h6M11 16.5h6"/></svg>',
   graph: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="4" cy="5" r="2"/><circle cx="20" cy="5" r="2"/><circle cx="12" cy="21" r="2"/><path d="M6 6l4 4M18 6l-4 4M12 15v4"/></svg>',
   pivot: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l3 3M16 16l3 3M19 5l-3 3M8 16l-3 3"/></svg>',
   deep: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="10"/></svg>',
@@ -567,7 +568,7 @@ function fillTpl(url, v) { return url.replaceAll("{value}", v).replaceAll("{enc}
 
 function renderDetails() {
   if (S.view === "shield") { window.Intel?.renderSoon(); return; }
-  if (S.view === "report") renderReport(); else renderPanel();
+  if (S.view === "report") renderReport(); else { renderPanel(); window.Exposure?.refresh(); }
 }
 function renderPanel() {
   const box = $("#details");
@@ -592,6 +593,7 @@ function renderPanel() {
         <button class="btn sm" data-act="deep" title="Pivot and keep auto-pivoting from here (resets depth to 0)">${ICON.deep}Deep pivot</button>
         <select class="btn sm" data-act="runmod" style="max-width:150px"><option value="">Run module…</option>${modulesFor(n.type).map((m) => `<option value="${m.name}">${esc(m.label)}</option>`).join("")}</select>` : ""}
         ${window.Intel ? Intel.profileButton(n) : ""}
+        ${window.Exposure ? Exposure.button(n) : ""}
         <button class="btn sm ghost" data-act="focus" title="Show only this node's neighbourhood">${ICON.focus}</button>
         <button class="btn sm ghost" data-act="addlinked" title="Add a linked indicator">${ICON.plus}</button>
         <button class="btn sm ghost" data-act="hide" title="Hide from graph">${ICON.hide}</button>
@@ -775,6 +777,7 @@ function renderReport() {
   const f = document.activeElement?.dataset?.sumfilter !== undefined ? document.activeElement.selectionStart : null;
   box.innerHTML = reportHTML();
   wrap.scrollTop = st;
+  window.Exposure?.refresh();
   if (f != null) { const i = $("[data-sumfilter]", box); if (i) { i.focus(); i.setSelectionRange(f, f); } }
 }
 function seedNodes() { return [...S.nodes.values()].filter((n) => n.root); }
@@ -810,6 +813,7 @@ function reportHTML() {
       ${n.tags.length ? `<div class="tags">${n.tags.slice(0, 16).map((x) => `<span class="tag">${esc(x)}</span>`).join("")}${n.tags.length > 16 ? `<span class="tag">+${n.tags.length - 16}</span>` : ""}</div>` : ""}
       <div class="d-actions">
         <button class="btn sm rep-graph" data-view="graph" title="Open the pivot graph">${ICON.graph}Open graph</button>
+        ${window.Exposure ? Exposure.button(n) : ""}
         ${piv ? `<button class="btn sm" data-rescan="${esc(n.id)}" title="Run every enabled source again, skipping the cache">${ICON.redo}Re-scan (skip cache)</button>
         <select class="btn sm" data-runmod="${esc(n.id)}" style="max-width:170px"><option value="">Run one source…</option>${modulesFor(n.type).map((m) => `<option value="${m.name}">${esc(m.label)}</option>`).join("")}</select>` : ""}
         <button class="btn sm ghost" data-copyall title="Copy every IOC in this scan, one per line (C)">${ICON.copy}Copy all IOCs</button>

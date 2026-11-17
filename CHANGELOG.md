@@ -8,6 +8,19 @@ All notable changes to ARACHNE. Versions follow [Semantic Versioning](https://se
 
 Each release is tagged in git as `vX.Y.Z`. The running version is shown at the bottom right of the app and printed when the server starts.
 
+## [2.14.0] - 2026-11-17
+
+### Added
+- **Exposure Results.** Every IP, domain and URL report has an **Exposure Results** button next to Open graph (also in the graph's side panel). It shows how many open ports and vulnerabilities were found and opens a window with:
+  - **Open ports**, each with its service name and a plain-English risk: "Should not be public" (for example Remote Desktop, SMB, databases, Docker, Redis), "Check it" or "Normal", and why it matters.
+  - **Software seen** on the host and Shodan's tags.
+  - **Vulnerabilities, most dangerous first**: exploited in the wild (CISA KEV, with a ransomware flag) first, then the chance of being exploited in the next 30 days (EPSS), then severity (CVSS). Each CVE links to NVD.
+  - Tiles for open ports, risky services, vulnerabilities, critical vulnerabilities and those exploited in the wild.
+  - For domains and URLs, the public IPs they point to are checked (up to 3).
+- It's a new source, **Exposure (open ports & vulnerabilities)** (`osint/modules/exposure.py`), that runs with every scan of a submitted IP, domain or URL. It uses Shodan InternetDB and Shodan CVEDB, both free and keyless. It is passive: ARACHNE never scans the target, it reads what Shodan's scanners last saw (usually within the past week). Up to 40 vulnerabilities are ranked per check (newest first). It gives no malicious/clean verdict; it adds the tags `exposed`, `vulnerable` and `kev-vuln`.
+- Interface text for it in all 11 languages (port explanations are English for now).
+- Tests: `tests/test_exposure.py` (`python -m unittest discover -s tests`).
+
 ## [2.13.0] - 2026-11-17
 
 ### Added
