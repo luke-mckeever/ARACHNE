@@ -8,6 +8,11 @@ All notable changes to ARACHNE. Versions follow [Semantic Versioning](https://se
 
 Each release is tagged in git as `vX.Y.Z`. The running version is shown at the bottom right of the app and printed when the server starts.
 
+## [2.13.0] - 2026-11-17
+
+### Added
+- **A quiet signature.** A small, faint "woven by Luke Mckeever" after the version number in the bottom bar. Behind the scenes: a one-line signature in the browser's developer console, an `author` meta tag on the page and in HTML/PDF scan reports, and an `X-Crafted-By` header on the local server's responses. STIX, IOC list and rule exports are unchanged.
+
 ## [2.12.1] - 2026-11-17
 
 ### Changed

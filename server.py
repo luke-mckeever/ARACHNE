@@ -67,6 +67,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", "0")
         self.end_headers()
 
+    def end_headers(self):
+        self.send_header("X-Crafted-By", "Luke Mckeever")
+        super().end_headers()
+
     # ------------------------------------------------------------- helpers
     def send_json(self, obj, status=200):
         body = json.dumps(obj, default=str).encode()

@@ -1454,7 +1454,7 @@ function buildReport({ print = false } = {}) {
   const C = print
     ? { bg: "#ffffff", fg: "#18181b", panel: "#f6f6f7", panel2: "#efeff1", line: "#dcdce0", muted: "#5f5f6a", sub: "#3f3f46" }
     : { bg: "#050506", fg: "#e4e4e7", panel: "#0a0a0c", panel2: "#0e0e11", line: "#1f1f25", muted: "#80808a", sub: "#b4b4bb" };
-  return `<!doctype html><html><head><meta charset="utf-8"><title>ARACHNE scan report — ${esc(S.title)}</title><style>
+  return `<!doctype html><!-- ARACHNE · woven by Luke Mckeever --><html><head><meta charset="utf-8"><meta name="author" content="Luke Mckeever"><title>ARACHNE scan report — ${esc(S.title)}</title><style>
   body{background:${C.bg};color:${C.fg};font:13px/1.5 Inter,Segoe UI,sans-serif;margin:0 auto;padding:32px;max-width:1200px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   a{color:inherit}
   h1{font:700 22px Consolas,monospace;letter-spacing:.06em;margin:0 0 6px}h2{font:600 12px Consolas,monospace;letter-spacing:.14em;text-transform:uppercase;color:${C.muted};margin-top:34px;border-bottom:1px solid ${C.line};padding-bottom:6px}
@@ -1745,6 +1745,7 @@ async function init() {
   }
   S.modules = Object.fromEntries(S.meta.modules.map((m) => [m.name, m]));
   if (S.meta.version) $("#appVersion").textContent = `v${S.meta.version}`;
+  console.log("%c ARACHNE %c woven by Luke Mckeever ", "background:#18181b;color:#e4e4e7;font:700 11px monospace;letter-spacing:.2em;padding:3px 0", "color:#80808a;font:11px monospace;padding:3px 0");
   $("#typeSel").innerHTML = '<option value="auto">AUTO</option>' + Object.entries(S.meta.types).filter(([, t]) => t.pivotable).map(([k, t]) => `<option value="${k}">${esc(t.label)}</option>`).join("");
   if (typeof cytoscape === "undefined") {
     toast("Graph library failed to load (no internet?). Check your connection and reload.", "error", 15000);
