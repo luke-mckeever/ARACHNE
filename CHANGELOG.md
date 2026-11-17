@@ -8,6 +8,12 @@ All notable changes to ARACHNE. Versions follow [Semantic Versioning](https://se
 
 Each release is tagged in git as `vX.Y.Z`. The running version is shown at the bottom right of the app and printed when the server starts.
 
+## [2.12.1] - 2026-11-17
+
+### Changed
+- **README rewritten** for the current app: Scanner · Shield · Sandbox, Shield attribution and ATT&CK, bulk scans, extracting IOCs from text, detection rules, threat library, languages and phones. A new section near the top introduces the website, [arachne-app.site](https://arachne-app.site), and what it adds (Sandbox with file, email header, YARA and capability checks, website previews, the Intel DB and private scans, AI summaries, accounts and the admin portal).
+- **New screenshots** in `docs/screenshots/`, taken with made-up demo data (documentation IP ranges and `.example` domains); website screenshots in `docs/screenshots/website/`. The old, out-of-date screenshots were removed. No change to how the app works.
+
 ## [2.12.0] - 2026-11-16
 
 ### Changed
