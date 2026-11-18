@@ -797,5 +797,20 @@
 "Risky services": "Riskante Dienste",
 "Exploited in the wild": "Aktiv ausgenutzt",
 "1 older vulnerability is listed but not ranked (only the newest 40 are ranked per check).": "1 ältere Schwachstelle ist gelistet, aber nicht bewertet (pro Prüfung werden nur die neuesten 40 bewertet).",
-"{n} older vulnerabilities are listed but not ranked (only the newest 40 are ranked per check).": "{n} ältere Schwachstellen sind gelistet, aber nicht bewertet (pro Prüfung werden nur die neuesten 40 bewertet)."
+"{n} older vulnerabilities are listed but not ranked (only the newest 40 are ranked per check).": "{n} ältere Schwachstellen sind gelistet, aber nicht bewertet (pro Prüfung werden nur die neuesten 40 bewertet).",
+"Accounts found": "Gefundene Konten",
+"Looking for accounts on other platforms…": "Suche nach Konten auf anderen Plattformen…",
+"No accounts found on the platforms checked.": "Auf den geprüften Plattformen wurden keine Konten gefunden.",
+"via username {name}": "über Benutzername {name}",
+"on {n} platforms": "auf {n} Plattformen",
+"Open profile": "Profil öffnen",
+"Username check": "Benutzernamen-Prüfung",
+"Verified on Gravatar": "Auf Gravatar bestätigt",
+"Gravatar profile": "Gravatar-Profil",
+"GitHub profile": "GitHub-Profil",
+"Linked from GitHub": "Von GitHub verlinkt",
+"Reddit profile": "Reddit-Profil",
+"Keybase profile": "Keybase-Profil",
+"Keybase proof": "Keybase-Nachweis",
+"Hacker News profile": "Hacker-News-Profil"
 }

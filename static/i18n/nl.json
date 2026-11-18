@@ -797,5 +797,20 @@
 "Risky services": "Riskante diensten",
 "Exploited in the wild": "Actief misbruikt",
 "1 older vulnerability is listed but not ranked (only the newest 40 are ranked per check).": "1 oudere kwetsbaarheid staat in de lijst maar is niet gerangschikt (alleen de 40 nieuwste worden per controle gerangschikt).",
-"{n} older vulnerabilities are listed but not ranked (only the newest 40 are ranked per check).": "{n} oudere kwetsbaarheden staan in de lijst maar zijn niet gerangschikt (alleen de 40 nieuwste worden per controle gerangschikt)."
+"{n} older vulnerabilities are listed but not ranked (only the newest 40 are ranked per check).": "{n} oudere kwetsbaarheden staan in de lijst maar zijn niet gerangschikt (alleen de 40 nieuwste worden per controle gerangschikt).",
+"Accounts found": "Gevonden accounts",
+"Looking for accounts on other platforms…": "Zoeken naar accounts op andere platforms…",
+"No accounts found on the platforms checked.": "Geen accounts gevonden op de gecontroleerde platforms.",
+"via username {name}": "via gebruikersnaam {name}",
+"on {n} platforms": "op {n} platforms",
+"Open profile": "Profiel openen",
+"Username check": "Gebruikersnaamcontrole",
+"Verified on Gravatar": "Geverifieerd op Gravatar",
+"Gravatar profile": "Gravatar-profiel",
+"GitHub profile": "GitHub-profiel",
+"Linked from GitHub": "Gelinkt vanaf GitHub",
+"Reddit profile": "Reddit-profiel",
+"Keybase profile": "Keybase-profiel",
+"Keybase proof": "Keybase-bewijs",
+"Hacker News profile": "Hacker News-profiel"
 }

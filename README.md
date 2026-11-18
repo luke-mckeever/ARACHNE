@@ -57,6 +57,7 @@ The app has three parts, shown as tabs at the top:
 ## Features (local app and website)
 
 - **IOC scan report:** risk score and grade, a ring showing how many sources flag the IOC, a verdict table with one row per source and the full findings, filling in live as each lookup finishes.
+- **Accounts found as platform cards:** username and email reports show every account found on another platform as a card with the platform's name and icon, its category and an open-profile link; account nodes in the graph show the same icon.
 - **Every common indicator type:** IPv4/IPv6, domain, URL, email, username, file hash (MD5/SHA-1/SHA-256), ASN and CVE, plus threat actors, malware families and ATT&CK IDs. The type is detected for you and defanged values are refanged.
 - **Overall risk score:** every IOC gets a 0 to 100 score and a grade (Critical, High, Medium, Low, Clean) combined from the per-source verdicts.
 - **Bulk scans:** paste, upload or drop up to 500 IOCs and get one triage report sorted by risk, with a filter and one-click copy of the flagged IOCs.
@@ -181,4 +182,4 @@ ARACHNE uses version numbers like `v2.12.1` (major.minor.patch). The current ver
 
 ## License
 
-MIT. `osint/cacert.pem` is Mozilla's CA bundle (MPL-2.0).
+MIT. `osint/cacert.pem` is Mozilla's CA bundle (MPL-2.0). Platform icons in `static/js/platform-icons.js` are from [Simple Icons](https://simpleicons.org) (CC0 1.0); the brands and logos belong to their owners.

@@ -797,5 +797,20 @@
 "Risky services": "위험한 서비스",
 "Exploited in the wild": "실제 악용됨",
 "1 older vulnerability is listed but not ranked (only the newest 40 are ranked per check).": "오래된 취약점 1개가 목록에 있지만 평가되지 않았습니다 (확인당 최신 40개만 평가).",
-"{n} older vulnerabilities are listed but not ranked (only the newest 40 are ranked per check).": "오래된 취약점 {n}개가 목록에 있지만 평가되지 않았습니다 (확인당 최신 40개만 평가)."
+"{n} older vulnerabilities are listed but not ranked (only the newest 40 are ranked per check).": "오래된 취약점 {n}개가 목록에 있지만 평가되지 않았습니다 (확인당 최신 40개만 평가).",
+"Accounts found": "발견된 계정",
+"Looking for accounts on other platforms…": "다른 플랫폼에서 계정을 찾는 중…",
+"No accounts found on the platforms checked.": "확인한 플랫폼에서 계정을 찾지 못했습니다.",
+"via username {name}": "사용자 이름 {name} 경유",
+"on {n} platforms": "{n}개 플랫폼",
+"Open profile": "프로필 열기",
+"Username check": "사용자 이름 확인",
+"Verified on Gravatar": "Gravatar에서 인증됨",
+"Gravatar profile": "Gravatar 프로필",
+"GitHub profile": "GitHub 프로필",
+"Linked from GitHub": "GitHub에서 연결됨",
+"Reddit profile": "Reddit 프로필",
+"Keybase profile": "Keybase 프로필",
+"Keybase proof": "Keybase 증명",
+"Hacker News profile": "Hacker News 프로필"
 }

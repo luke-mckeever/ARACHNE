@@ -797,5 +797,20 @@
 "Risky services": "高风险服务",
 "Exploited in the wild": "已被实际利用",
 "1 older vulnerability is listed but not ranked (only the newest 40 are ranked per check).": "有 1 个较旧的漏洞已列出但未评级(每次检查只评级最新的 40 个)。",
-"{n} older vulnerabilities are listed but not ranked (only the newest 40 are ranked per check).": "有 {n} 个较旧的漏洞已列出但未评级(每次检查只评级最新的 40 个)。"
+"{n} older vulnerabilities are listed but not ranked (only the newest 40 are ranked per check).": "有 {n} 个较旧的漏洞已列出但未评级(每次检查只评级最新的 40 个)。",
+"Accounts found": "找到的账户",
+"Looking for accounts on other platforms…": "正在其他平台上查找账户…",
+"No accounts found on the platforms checked.": "在已检查的平台上未找到账户。",
+"via username {name}": "通过用户名 {name}",
+"on {n} platforms": "分布在 {n} 个平台",
+"Open profile": "打开个人资料",
+"Username check": "用户名检查",
+"Verified on Gravatar": "已在 Gravatar 验证",
+"Gravatar profile": "Gravatar 个人资料",
+"GitHub profile": "GitHub 个人资料",
+"Linked from GitHub": "来自 GitHub 的链接",
+"Reddit profile": "Reddit 个人资料",
+"Keybase profile": "Keybase 个人资料",
+"Keybase proof": "Keybase 证明",
+"Hacker News profile": "Hacker News 个人资料"
 }

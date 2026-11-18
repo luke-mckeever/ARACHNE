@@ -137,6 +137,10 @@ function glyphImg(t) {
   }
   return glyphCache.get(key);
 }
+function accountImg(id) {
+  const n = S.nodes.get(id);
+  return n && window.Accounts ? Accounts.graphImage(Accounts.match(n)) : glyphImg("account");
+}
 function buildStyle() {
   const sz = +S.ui.nodeSize || 34, fs = +S.ui.labelSize || 10, V = CFG.verdictColors, acc = S.ui.accent;
   return [
@@ -148,6 +152,7 @@ function buildStyle() {
       "font-size": fs, "text-valign": "bottom", "text-margin-y": 5, "text-outline-color": "#050506", "text-outline-width": 2.5,
       "min-zoomed-font-size": 6, "overlay-opacity": 0,
     } },
+    { selector: 'node[type="account"]', style: { "background-image": (n) => accountImg(n.id()), "background-fit": "cover", "background-width": "100%", "background-height": "100%", "background-opacity": 1, "background-clip": "node" } },
     { selector: "node[?root]", style: { width: sz * 1.55, height: sz * 1.55, "border-width": 2.5, "font-size": fs + 2, color: "#f4f4f5", "font-weight": 700,
       "underlay-color": "#ffffff", "underlay-opacity": 0.07, "underlay-padding": 12, "underlay-shape": "ellipse" } },
     { selector: 'node[verdict="suspicious"]', style: { "border-color": V.suspicious, "border-width": 2.4, "border-opacity": 1,
@@ -847,7 +852,7 @@ function reportHTML() {
     ${b.good.map(([m, r]) => cardHTML(m, r)).join("") || (done && !busy.size ? '<div class="empty-note">No source returned data for this IOC.</div>' : "")}
     ${otherSourcesHTML(b)}</div>`;
 
-  return `<div class="rep">${iocBarHTML(n)}${head}${tiles}${table}<div class="rep-cols"><div>${findings}</div><div>${window.Intel ? Intel.reportSection(n) : ""}${relatedHTML(n)}${manualHTML(n)}</div></div></div>`;
+  return `<div class="rep">${iocBarHTML(n)}${head}${tiles}${accountsHTML(n, busy)}${table}<div class="rep-cols"><div>${findings}</div><div>${window.Intel ? Intel.reportSection(n) : ""}${relatedHTML(n)}${manualHTML(n)}</div></div></div>`;
 }
 // every indicator in the scan as a plain list, one per line, grouped by type (riskiest first in each type)
 const IOC_ORDER = ["ipv4", "ipv6", "domain", "url", "email", "hash", "asn", "cve", "username", "malware"];
@@ -914,6 +919,53 @@ function summaryHTML() {
       <td class="dim" title="${esc(n.tags.join(", "))}">${esc(n.tags.slice(0, 6).join(", "))}</td><td>${fr ? `<span class="age ${fr.cached ? "cached" : ""}">${ago(fr.oldest)}${fr.cached ? " · cache" : ""}</span>` : ""}</td></tr>`).join("")}
     </tbody></table></div>${!shown.length ? '<div class="empty-note">No IOCs match the filter.</div>' : ""}</div></div>`;
 }
+// accounts a username or email has on other platforms, as cards with the platform's icon (accounts.js).
+// For an email, accounts found for usernames linked to it (e.g. its local part, once scanned) are included.
+const ACCT_REL = { has_account: "Username check", verified_account: "Verified on Gravatar", gravatar_profile: "Gravatar profile",
+  github_profile: "GitHub profile", twitter: "Linked from GitHub", reddit_profile: "Reddit profile", keybase_profile: "Keybase profile",
+  keybase_proof: "Keybase proof", hn_profile: "Hacker News profile" };
+function linkedTo(id) {
+  const out = [];
+  for (const e of S.edges.values()) {
+    const oid = e.source === id ? e.target : e.target === id ? e.source : null;
+    const o = oid && S.nodes.get(oid);
+    if (o) out.push({ o, rel: e.rel });
+  }
+  return out;
+}
+function accountsOf(n) {
+  const found = new Map();
+  for (const { o, rel } of linkedTo(n.id)) if (o.type === "account" && !found.has(o.id)) found.set(o.id, { o, rel });
+  if (n.type === "email") {
+    for (const { o: u } of linkedTo(n.id)) {
+      if (u.type !== "username") continue;
+      for (const { o, rel } of linkedTo(u.id)) if (o.type === "account" && !found.has(o.id)) found.set(o.id, { o, rel, via: u.value });
+    }
+  }
+  return [...found.values()];
+}
+function accountsHTML(n, busy) {
+  if (!window.Accounts || !["username", "email"].includes(n.type) && !accountsOf(n).length) return "";
+  const cat = new Map((S.meta.sites || []).map((s) => [s.name.toLowerCase(), s.cat]));
+  const list = accountsOf(n).map((a) => ({ ...a, m: Accounts.match(a.o) }))
+    .sort((a, c) => a.m.name.localeCompare(c.m.name) || a.m.handle.localeCompare(c.m.handle));
+  const done = Object.keys(S.results.get(n.id) || {}).length;
+  if (!list.length) {
+    if (busy.size) return `<div class="rep-sec acct-sec"><h3>Accounts found <em>0</em></h3><div class="msg"><span class="spinner"></span> Looking for accounts on other platforms…</div></div>`;
+    return done ? `<div class="rep-sec acct-sec"><h3>Accounts found <em>0</em></h3><div class="msg">No accounts found on the platforms checked.</div></div>` : "";
+  }
+  const platforms = new Set(list.map((a) => a.m.name)).size;
+  const card = ({ o, rel, via, m }) => {
+    const site = (o.label || "").split(": ")[0];
+    const meta = cat.get(site.toLowerCase()) || ACCT_REL[rel] || rel.replace(/_/g, " ");
+    const safe = /^https?:\/\//i.test(o.value);
+    return `<div class="acct" data-goto="${esc(o.id)}" title="${esc(o.value + (via ? "\n" + window.t("via username {name}", { name: via }) : ""))}">${Accounts.iconHTML(m)}
+      <div class="acct-txt"><b>${esc(m.name)}</b><span class="acct-h" translate="no">${esc(m.handle)}</span><span class="acct-m">${esc(meta)}</span></div>
+      ${safe ? `<a class="icon-btn acct-open" href="${esc(o.value)}" target="_blank" rel="noopener noreferrer nofollow" title="Open profile" aria-label="Open profile">${ICON.link}</a>` : ""}</div>`;
+  };
+  return `<div class="rep-sec acct-sec"><h3>Accounts found <em>${list.length}</em>${platforms !== list.length ? `<span class="acct-sub">${window.t("on {n} platforms", { n: platforms })}</span>` : ""}${busy.size ? '<span class="spinner"></span>' : ""}</h3>
+    <div class="acct-grid">${list.map(card).join("")}</div></div>`;
+}
 // indicators the sources linked to this IOC - the way into pivoting
 function relatedHTML(n) {
   const kids = new Map();
@@ -922,7 +974,8 @@ function relatedHTML(n) {
     const o = oid && S.nodes.get(oid);
     if (o && !kids.has(o.id)) kids.set(o.id, { o, rel: e.rel });
   }
-  const list = [...kids.values()];
+  const cards = window.Accounts && (["username", "email"].includes(n.type) || [...kids.values()].some(({ o }) => o.type === "account"));
+  const list = [...kids.values()].filter(({ o }) => !cards || o.type !== "account");
   const pivotable = (o) => S.meta.types[o.type]?.pivotable;
   const unscanned = list.filter(({ o }) => pivotable(o) && !S.results.has(o.id) && !S.busy.get(o.id)?.size);
   const groups = new Map();
@@ -1626,7 +1679,7 @@ function bind() {
       const v = summaryRows().filter(({ rk }) => (rk.score ?? 0) >= 35).map(({ n }) => n.value);
       return v.length ? copy(v.join("\n")) : toast("No IOCs at medium risk or above", "warn");
     }
-    if (t.closest("[data-sumfilter], .sum-tools")) return;
+    if (t.closest("[data-sumfilter], .sum-tools, a[href]")) return;
     const go = t.closest("[data-goto]"); if (go) return select(go.dataset.goto);
   };
   $("#report").addEventListener("input", debounce((e) => { if (e.target.dataset.sumfilter !== undefined) { S.sumFilter = e.target.value.trim(); renderReport(); } }, 200));

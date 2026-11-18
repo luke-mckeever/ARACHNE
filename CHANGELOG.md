@@ -8,6 +8,18 @@ All notable changes to ARACHNE. Versions follow [Semantic Versioning](https://se
 
 Each release is tagged in git as `vX.Y.Z`. The running version is shown at the bottom right of the app and printed when the server starts.
 
+## [2.15.0] - 2026-11-18
+
+### Added
+- **Accounts found, as platform cards.** Username and email reports have a new **Accounts found** section near the top: every account found on another platform is a card with the platform's name and icon, the username on that platform, its category (Dev, Social, Gaming…) or how it was found (for example "Verified on Gravatar"), and a button to open the profile. Click a card to open that account in the report. The heading shows how many accounts were found and on how many platforms; while the scan runs it says it is still looking.
+- On an email report, accounts found for usernames linked to the email (its Gravatar username, or the part before the @ once you pivot on it) are included too.
+- In the graph, account nodes show the platform's icon instead of "ACC".
+- Icons for about 135 platforms (every built-in username site, Gravatar's verified accounts, Keybase proofs and many more), bundled in `static/js/platform-icons.js` from [Simple Icons](https://simpleicons.org) (CC0). Nothing is loaded from the platforms themselves, so it works offline. Platforms without an icon get a letter tile in their brand colour. Rebuild the icon file with `node tools/build_platforms.mjs`.
+- Tests: `node tests/accounts.test.mjs`.
+
+### Changed
+- Accounts are no longer repeated in the Related indicators list of a username or email report (they are in the cards).
+
 ## [2.14.0] - 2026-11-17
 
 ### Added

@@ -797,5 +797,20 @@
 "Risky services": "危険なサービス",
 "Exploited in the wild": "悪用確認済み",
 "1 older vulnerability is listed but not ranked (only the newest 40 are ranked per check).": "古い脆弱性 1 件は一覧にありますが未評価です(1 回の確認で評価するのは最新の 40 件のみ)。",
-"{n} older vulnerabilities are listed but not ranked (only the newest 40 are ranked per check).": "古い脆弱性 {n} 件は一覧にありますが未評価です(1 回の確認で評価するのは最新の 40 件のみ)。"
+"{n} older vulnerabilities are listed but not ranked (only the newest 40 are ranked per check).": "古い脆弱性 {n} 件は一覧にありますが未評価です(1 回の確認で評価するのは最新の 40 件のみ)。",
+"Accounts found": "見つかったアカウント",
+"Looking for accounts on other platforms…": "他のプラットフォームでアカウントを検索中…",
+"No accounts found on the platforms checked.": "確認したプラットフォームでアカウントは見つかりませんでした。",
+"via username {name}": "ユーザー名 {name} 経由",
+"on {n} platforms": "{n} 個のプラットフォーム",
+"Open profile": "プロフィールを開く",
+"Username check": "ユーザー名チェック",
+"Verified on Gravatar": "Gravatar で確認済み",
+"Gravatar profile": "Gravatar プロフィール",
+"GitHub profile": "GitHub プロフィール",
+"Linked from GitHub": "GitHub からのリンク",
+"Reddit profile": "Reddit プロフィール",
+"Keybase profile": "Keybase プロフィール",
+"Keybase proof": "Keybase 証明",
+"Hacker News profile": "Hacker News プロフィール"
 }

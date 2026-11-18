@@ -797,5 +797,20 @@
 "Risky services": "Services à risque",
 "Exploited in the wild": "Exploitées activement",
 "1 older vulnerability is listed but not ranked (only the newest 40 are ranked per check).": "1 vulnérabilité plus ancienne est listée mais non classée (seules les 40 plus récentes sont classées par vérification).",
-"{n} older vulnerabilities are listed but not ranked (only the newest 40 are ranked per check).": "{n} vulnérabilités plus anciennes sont listées mais non classées (seules les 40 plus récentes sont classées par vérification)."
+"{n} older vulnerabilities are listed but not ranked (only the newest 40 are ranked per check).": "{n} vulnérabilités plus anciennes sont listées mais non classées (seules les 40 plus récentes sont classées par vérification).",
+"Accounts found": "Comptes trouvés",
+"Looking for accounts on other platforms…": "Recherche de comptes sur d'autres plateformes…",
+"No accounts found on the platforms checked.": "Aucun compte trouvé sur les plateformes vérifiées.",
+"via username {name}": "via le nom d'utilisateur {name}",
+"on {n} platforms": "sur {n} plateformes",
+"Open profile": "Ouvrir le profil",
+"Username check": "Vérification du nom d'utilisateur",
+"Verified on Gravatar": "Vérifié sur Gravatar",
+"Gravatar profile": "Profil Gravatar",
+"GitHub profile": "Profil GitHub",
+"Linked from GitHub": "Lié depuis GitHub",
+"Reddit profile": "Profil Reddit",
+"Keybase profile": "Profil Keybase",
+"Keybase proof": "Preuve Keybase",
+"Hacker News profile": "Profil Hacker News"
 }
